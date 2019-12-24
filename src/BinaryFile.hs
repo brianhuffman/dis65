@@ -180,9 +180,12 @@ mark = Map.insertWith mappend
 newtype AddrState = AddrState Word8
   deriving (Eq)
 
+instance Semigroup AddrState where
+  AddrState x <> AddrState y = AddrState (x .|. y)
+
 instance Monoid AddrState where
   mempty = AddrState 0
-  mappend (AddrState x) (AddrState y) = AddrState (x .|. y)
+  mappend = (<>)
 
 has :: AddrState -> AddrState -> Bool
 has x y = mappend x y == y
