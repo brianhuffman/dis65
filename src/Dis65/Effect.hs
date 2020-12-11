@@ -453,11 +453,11 @@ ppBasicEffect e =
   , if rti e then "RTI" else ""
   , if brk e then "BRK" else ""
   , unwords [ "U" ++ ppWord8 op | op <- Set.elems (undoc e) ]
+  , unwords [ "JMP $" ++ ppWord16 (fromIntegral a) | a <- IntSet.elems (jmpAbs e) ]
+  , unwords [ "JMP ($" ++ ppWord16 (fromIntegral a) ++ ")" | a <- IntSet.elems (jmpInd e) ]
   , Reg.ppRegEffect (registers e)
   , Stack.ppStackEffect (stack e)
   , ppMemEffects (memory e)
   , ppSubroutines (subroutines e)
   , if branch e then "Branch" else ""
-  , unwords [ "JMP $" ++ ppWord16 (fromIntegral a) | a <- IntSet.elems (jmpAbs e) ]
-  , unwords [ "JMP ($" ++ ppWord16 (fromIntegral a) ++ ")" | a <- IntSet.elems (jmpInd e) ]
   ]
