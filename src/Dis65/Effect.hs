@@ -77,7 +77,7 @@ doOpStack =
     PHP -> noEffect { stack = Stack.push, registers = Reg.readP }
     PLP -> noEffect { stack = Stack.pull, registers = Reg.writeP }
     PHA -> noEffect { stack = Stack.push, registers = Reg.readA }
-    PLA -> noEffect { stack = Stack.push, registers = Reg.writeA >>> Reg.writeNZ }
+    PLA -> noEffect { stack = Stack.pull, registers = Reg.writeA >>> Reg.writeNZ }
 
 doOpReg :: OpReg -> Reg.RegEffect
 doOpReg =
