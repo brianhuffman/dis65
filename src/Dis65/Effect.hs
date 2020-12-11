@@ -4,6 +4,7 @@
 module Dis65.Effect where
 
 import           Control.Applicative (liftA2)
+import           Control.Monad (unless)
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.IntSet (IntSet)
@@ -11,6 +12,8 @@ import qualified Data.IntSet as IntSet
 import           Data.Maybe
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Data.Word
 
 import           Dis65.Effect.Class
@@ -28,8 +31,14 @@ data BasicEffect =
   { stack :: !Stack.StackEffect
   , memory :: !(Map AddrMode Mem.MemEffect)
   , registers :: !Reg.RegEffect
-  , subroutines :: !IntSet
-  , branch :: !Bool
+  , subroutines :: !IntSet -- can JSR to these addresses
+  , branch :: !Bool -- can reach a branch instruction
+  , rts :: !Bool -- can reach an RTS instruction
+  , rti :: !Bool -- can reach an RTI instruction
+  , brk :: !Bool -- can reach a BRK instruction
+  , undoc :: !(Set Word8) -- can reach an undocumented instruction
+  , jmpAbs :: !IntSet -- can jump to an unmapped address
+  , jmpInd :: !IntSet -- can jump indirectly through a vector
   }
   deriving (Eq, Show)
 
@@ -41,6 +50,12 @@ instance Effect BasicEffect where
     , registers = registers e1 +++ registers e2
     , subroutines = subroutines e1 <> subroutines e2
     , branch = branch e1 || branch e2
+    , rts = rts e1 || rts e2
+    , rti = rti e1 || rti e2
+    , brk = brk e1 || brk e2
+    , undoc = Set.union (undoc e1) (undoc e2)
+    , jmpAbs = IntSet.union (jmpAbs e1) (jmpAbs e2)
+    , jmpInd = IntSet.union (jmpInd e1) (jmpInd e2)
     }
 
   e1 >>> e2 =
@@ -50,6 +65,12 @@ instance Effect BasicEffect where
     , registers = registers e1 >>> registers e2
     , subroutines = subroutines e1 <> subroutines e2
     , branch = branch e1 || branch e2
+    , rts = rts e1 || rts e2
+    , rti = rti e1 || rti e2
+    , brk = brk e1 || brk e2
+    , undoc = Set.union (undoc e1) (undoc e2)
+    , jmpAbs = IntSet.union (jmpAbs e1) (jmpAbs e2)
+    , jmpInd = IntSet.union (jmpInd e1) (jmpInd e2)
     }
 
 instance NoEffect BasicEffect where
@@ -60,6 +81,12 @@ instance NoEffect BasicEffect where
     , registers = noEffect
     , subroutines = mempty
     , branch = False
+    , rts = False
+    , rti = False
+    , brk = False
+    , undoc = Set.empty
+    , jmpAbs = IntSet.empty
+    , jmpInd = IntSet.empty
     }
 
 --------------------------------------------------------------------------------
@@ -174,52 +201,6 @@ doAddrArg rw =
   where
     go mode addr = Map.singleton mode $! rw (fromIntegral addr)
 
---------------------------------------------------------------------------------
--- * FinalEffect
-
--- | The effect of running an instruction all the way to a
--- block-ending instruction: Either an RTS, RTI, BRK or crash.
-
-data FinalEffect =
-  FinalEffect
-  { rts :: Maybe BasicEffect
-  , rti :: Maybe BasicEffect
-  , brk :: Maybe BasicEffect
-  , crash :: Map Word8 BasicEffect
-  }
-  deriving (Eq, Show)
-
-combineMaybe :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
-combineMaybe _ Nothing y = y
-combineMaybe _ x Nothing = x
-combineMaybe f (Just x) (Just y) = Just (f x y)
-
-instance Semigroup FinalEffect where
-  e1 <> e2 =
-    FinalEffect
-    { rts = combineMaybe (+++) (rts e1) (rts e2)
-    , rti = combineMaybe (+++) (rti e1) (rti e2)
-    , brk = combineMaybe (+++) (brk e1) (brk e2)
-    , crash = Map.unionWith (+++) (crash e1) (crash e2)
-    }
-
-instance Monoid FinalEffect where
-  mempty =
-    FinalEffect
-    { rts = Nothing
-    , rti = Nothing
-    , brk = Nothing
-    , crash = Map.empty
-    }
-
-thenFinalEffect :: BasicEffect -> FinalEffect -> FinalEffect
-thenFinalEffect e1 e2 =
-  FinalEffect
-  { rts = fmap (e1 >>>) (rts e2)
-  , rti = fmap (e1 >>>) (rti e2)
-  , brk = fmap (e1 >>>) (brk e2)
-  , crash = fmap (e1 >>>) (crash e2)
-  }
 
 --------------------------------------------------------------------------------
 -- * Computing FinalEffect for one instruction
@@ -251,61 +232,75 @@ computePredecessors successors =
      b <- bs
      pure (b, [a])
 
+jmpUnmapped :: Int -> BasicEffect
+jmpUnmapped pc = noEffect { jmpAbs = IntSet.singleton pc }
+
+lookupEffect :: IntMap BasicEffect -> Int -> BasicEffect
+lookupEffect state pc =
+  case IntMap.lookup pc state of
+    Nothing -> jmpUnmapped pc
+    Just e -> e
+
 computeEffectAt ::
   -- | instructions
   IntMap Instruction ->
   -- | successors
   IntMap [Addr] ->
   -- | state
-  IntMap FinalEffect ->
+  IntMap BasicEffect ->
   -- | address
   Int ->
-  Maybe FinalEffect
+  BasicEffect
 computeEffectAt instructions successors state pc =
-  do instr <- IntMap.lookup pc instructions
-     let nexts = fromMaybe [] $ IntMap.lookup pc successors
-     nextEffect <- mconcat <$> traverse (flip IntMap.lookup state) nexts
+  case IntMap.lookup pc instructions of
+    Nothing -> jmpUnmapped pc
+    Just instr ->
+     let
+       nexts = fromMaybe [] $ IntMap.lookup pc successors
+       nextEffect = foldr (+++) noEffect (map (lookupEffect state) nexts)
+     in
      case instr of
        Reg op ->
-         do let effect = noEffect { registers = doOpReg op }
-            Just (thenFinalEffect effect nextEffect)
+         let effect = noEffect { registers = doOpReg op }
+         in effect >>> nextEffect
        Stack op ->
-         do let effect = doOpStack op
-            Just (thenFinalEffect effect nextEffect)
+         let effect = doOpStack op
+         in effect >>> nextEffect
        Read op arg ->
-         do let effect = doAddrArg Mem.readAddr arg >>> noEffect { registers = doOpR op }
-            Just (thenFinalEffect effect nextEffect)
+         let effect = doAddrArg Mem.readAddr arg >>> noEffect { registers = doOpR op }
+         in effect >>> nextEffect
        Write op arg ->
-         do let effect = doAddrArg Mem.writeAddr arg >>> noEffect { registers = doOpW op }
-            Just (thenFinalEffect effect nextEffect)
+         let effect = doAddrArg Mem.writeAddr arg >>> noEffect { registers = doOpW op }
+         in effect >>> nextEffect
        Modify op arg ->
-         do let effect = doAddrArg Mem.modifyAddr arg >>> noEffect { registers = doOpRW op }
-            Just (thenFinalEffect effect nextEffect)
+         let effect = doAddrArg Mem.modifyAddr arg >>> noEffect { registers = doOpRW op }
+         in effect >>> nextEffect
        Accumulator op ->
-         do let effect = noEffect { registers = Reg.readA >>> doOpRW op >>> Reg.writeA }
-            Just (thenFinalEffect effect nextEffect)
+         let effect = noEffect { registers = Reg.readA >>> doOpRW op >>> Reg.writeA }
+         in effect >>> nextEffect
        Branch op arg ->
-         do let effect = noEffect { registers = doOpBranch op, branch = True }
-            Just (thenFinalEffect effect nextEffect)
+         let effect = noEffect { registers = doOpBranch op, branch = True }
+         in effect >>> nextEffect
        JSR (fromIntegral -> target) ->
-         do -- FIXME: how to handle this? What if the other options are filled in?
-            srEffect <- rts =<< IntMap.lookup target state
-            let effect = push2 >>> srEffect >>> pull2 >>> noEffect { subroutines = IntSet.singleton target }
-            nextEffect' <- IntMap.lookup (pc + 3) state
-            Just (thenFinalEffect effect nextEffect')
+         let
+           srEffect = lookupEffect state target
+           afterEffect = lookupEffect state (pc + 3)
+         in
+           if rts srEffect
+           then push2 >>> srEffect { rts = False } >>> pull2 >>> noEffect { subroutines = IntSet.singleton target } >>> afterEffect
+           else push2 >>> srEffect -- no return
        BRK ->
-         Just mempty { brk = Just noEffect }
+         noEffect { brk = True }
        RTI ->
-         Just mempty { rti = Just noEffect }
+         noEffect { rti = True }
        RTS ->
-         Just mempty { rts = Just noEffect }
+         noEffect { rts = True }
        AbsJMP _ ->
-         Just nextEffect
-       IndJMP _ ->
-         -- Just nextEffect
-         Just mempty { crash = Map.singleton 0x6c noEffect }
+         nextEffect
+       IndJMP (fromIntegral -> target) ->
+         noEffect { jmpInd = IntSet.singleton target }
        Undoc op ->
-         Just mempty { crash = Map.singleton op noEffect }
+         noEffect { undoc = Set.singleton op }
 
 getAddr :: IntMap Word8 -> Addr -> AddrMode -> Maybe Addr
 getAddr memory pc =
@@ -385,28 +380,29 @@ are most often immediately below the successor address.
 computeFinalEffects ::
   -- | Memory
   IntMap Word8 ->
-  IO (IntMap FinalEffect)
+  IO (IntMap BasicEffect)
 computeFinalEffects memory =
   do let instructions = decodeInstructions memory
      let successors = IntMap.mapWithKey computeSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
-     let state0 = IntMap.empty
+     let state0 = IntMap.map (const noEffect) instructions
      let worklist0 = IntMap.keysSet instructions
      let
-       go :: IntSet -> IntMap FinalEffect -> IO (IntMap FinalEffect)
+       -- invariant: worklist should be a subset of the key set of state.
+       go :: IntSet -> IntMap BasicEffect -> IO (IntMap BasicEffect)
        go worklist state =
          case IntSet.maxView worklist of
            Nothing -> pure state
            Just (addr, worklist') ->
-             do let old = fromMaybe mempty (IntMap.lookup addr state)
-                let new = fromMaybe mempty (computeEffectAt instructions successors state addr)
+             do let old = fromMaybe (error "invariant violation") (IntMap.lookup addr state) -- lookup should always succeed
+                let new = computeEffectAt instructions successors state addr
                 let succs = fromMaybe mempty (IntMap.lookup addr successors)
                 putStrLn $ "**********" ++ ppWord16 (fromIntegral addr) ++ "**********"
                 putStrLn $ unwords $ "opcode:" : maybe "<none>" ppWord8 (IntMap.lookup addr memory) : "succs:" : map (ppWord16 . fromIntegral) succs
-                putStr $ ppFinalEffect new
+                putStrLn $ ppBasicEffect new
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
-                     putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
+                     unless (IntSet.null dirty) $ putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
                      go (IntSet.union dirty worklist') (IntMap.insert addr new state)
 
      go worklist0 state0
@@ -453,20 +449,15 @@ ppBasicEffect :: BasicEffect -> String
 ppBasicEffect e =
   unwords $
   filter (not . null) $
-  [ Reg.ppRegEffect (registers e)
+  [ if rts e then "RTS" else ""
+  , if rti e then "RTI" else ""
+  , if brk e then "BRK" else ""
+  , unwords [ "U" ++ ppWord8 op | op <- Set.elems (undoc e) ]
+  , Reg.ppRegEffect (registers e)
   , Stack.ppStackEffect (stack e)
   , ppMemEffects (memory e)
   , ppSubroutines (subroutines e)
-  , if branch e then "Branches" else ""
+  , if branch e then "Branch" else ""
+  , unwords [ "JMP $" ++ ppWord16 (fromIntegral a) | a <- IntSet.elems (jmpAbs e) ]
+  , unwords [ "JMP ($" ++ ppWord16 (fromIntegral a) ++ ")" | a <- IntSet.elems (jmpInd e) ]
   ]
-
-ppFinalEffect :: FinalEffect -> String
-ppFinalEffect e =
-  unlines $
-  catMaybes $
-  [ fmap (("RTS: " ++) . ppBasicEffect) (rts e)
-  , fmap (("RTI: " ++) . ppBasicEffect) (rti e)
-  , fmap (("BRK: " ++) . ppBasicEffect) (brk e)
-  ] ++
-  [ Just (ppWord8 op ++ ": " ++ ppBasicEffect be)
-  | (op, be) <- Map.assocs (crash e) ]
