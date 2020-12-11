@@ -29,6 +29,13 @@ instance Effect StackRange where
 instance NoEffect StackEffect where
   noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
 
+-- | A 'StackEffect' contains two 'StackRanges': The first is the
+-- range of possible stack heights (relative to 0 at the start) that
+-- the computation can take on at any time during its execution. The
+-- second is the range of possible stack heights at its conclusion.
+--
+-- Invariants: The first range must include 0, and it must also
+-- include the second range.
 data StackEffect = StackEffect !StackRange !StackRange
   deriving (Eq, Show)
 
@@ -46,9 +53,11 @@ push = StackEffect (StackRange 0 1) (StackRange 1 1)
 pull :: StackEffect
 pull = StackEffect (StackRange (-1) 0) (StackRange (-1) (-1))
 
+-- | For pretty printing, we offset the start and end values so that
+-- we never have to display negative numbers.
 ppStackEffect :: StackEffect -> String
 ppStackEffect (StackEffect (StackRange a b) (StackRange c d))
   | (a, b, c, d) == (0, 0, 0, 0) = ""
   | c /= d = show (a,c,d,b)
-  | b == c = show (b - a) ++ "->" ++ show (0 - a)
-  | otherwise = show (c - a) ++ "->" ++ show (b - a) ++ "->" ++ show (0 - a)
+  | b == max 0 c = show (0 - a) ++ "->" ++ show (c - a)
+  | otherwise = show (0 - a) ++ "->" ++ show (b - a) ++ "->" ++ show (c - a)
