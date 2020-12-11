@@ -130,4 +130,4 @@ ppRegs (Regs mask) = concatMap showReg [A,X,Y,S,C,Z,I,D,V,N]
   where showReg r = if testBit mask (regBit r) then show r else "-"
 
 ppRegEffect :: RegEffect -> String
-ppRegEffect (RegEffect r w) = unwords [ppRegs r, "->", ppRegs w]
+ppRegEffect (RegEffect r w) = concat [ppRegs r, "/", ppRegs w]
