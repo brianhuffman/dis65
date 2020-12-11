@@ -399,6 +399,9 @@ computeFinalEffects memory =
                 let succs = fromMaybe mempty (IntMap.lookup addr successors)
                 putStrLn $ "**********" ++ ppWord16 (fromIntegral addr) ++ "**********"
                 putStrLn $ unwords $ "opcode:" : maybe "<none>" ppWord8 (IntMap.lookup addr memory) : "succs:" : map (ppWord16 . fromIntegral) succs
+                case IntMap.lookup addr instructions of
+                  Just instr -> putStrLn $ ppInstruction instr
+                  Nothing -> pure ()
                 putStrLn $ ppBasicEffect new
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
