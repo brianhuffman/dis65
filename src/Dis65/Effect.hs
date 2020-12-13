@@ -375,8 +375,8 @@ computeFinalEffects ::
   Bool ->
   -- | Memory
   IntMap Word8 ->
-  IO (IntMap BasicEffect)
-computeFinalEffects memory =
+  IO (IntMap (Instruction, BasicEffect))
+computeFinalEffects debug memory =
   do let instructions = decodeInstructions memory
      let successors = IntMap.mapWithKey computeSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
@@ -404,7 +404,17 @@ computeFinalEffects memory =
                      when debug $ unless (IntSet.null dirty) $ putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
                      go (IntSet.union dirty worklist') (IntMap.insert addr new state)
 
-     go worklist0 state0
+     final <- go worklist0 state0
+     pure (IntMap.intersectionWith (,) instructions final)
+
+ppFinalEffects :: IntMap (Instruction, BasicEffect) -> IO ()
+ppFinalEffects = mapM_ pp1 . IntMap.assocs
+  where
+    pp1 (addr, (instr, e)) =
+      putStrLn $
+      ppWord16 (fromIntegral addr) ++ ": " ++
+      take 16 (ppInstruction instr ++ repeat ' ') ++ " " ++
+      ppBasicEffect e
 
 --------------------------------------------------------------------------------
 -- * Pretty printing
