@@ -4,7 +4,7 @@
 module Dis65.Effect where
 
 import           Control.Applicative (liftA2)
-import           Control.Monad (unless)
+import           Control.Monad (unless, when)
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.IntSet (IntSet)
@@ -372,6 +372,7 @@ are most often immediately below the successor address.
 -}
 
 computeFinalEffects ::
+  Bool ->
   -- | Memory
   IntMap Word8 ->
   IO (IntMap BasicEffect)
@@ -391,15 +392,16 @@ computeFinalEffects memory =
              do let old = fromMaybe (error "invariant violation") (IntMap.lookup addr state) -- lookup should always succeed
                 let new = computeEffectAt instructions state addr
                 let succs = fromMaybe mempty (IntMap.lookup addr successors)
-                putStrLn $ "**********" ++ ppWord16 (fromIntegral addr) ++ "**********"
-                putStrLn $ unwords $ "opcode:" : maybe "<none>" ppWord8 (IntMap.lookup addr memory) : "succs:" : map (ppWord16 . fromIntegral) succs
-                case IntMap.lookup addr instructions of
-                  Just instr -> putStrLn $ ppInstruction instr
-                  Nothing -> pure ()
-                putStrLn $ ppBasicEffect new
+                when debug $
+                  do putStrLn $ "**********" ++ ppWord16 (fromIntegral addr) ++ "**********"
+                     putStrLn $ unwords $ "opcode:" : maybe "<none>" ppWord8 (IntMap.lookup addr memory) : "succs:" : map (ppWord16 . fromIntegral) succs
+                     case IntMap.lookup addr instructions of
+                       Just instr -> putStrLn $ ppInstruction instr
+                       Nothing -> pure ()
+                     putStrLn $ ppBasicEffect new
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
-                     unless (IntSet.null dirty) $ putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
+                     when debug $ unless (IntSet.null dirty) $ putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
                      go (IntSet.union dirty worklist') (IntMap.insert addr new state)
 
      go worklist0 state0
