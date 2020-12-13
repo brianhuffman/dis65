@@ -221,7 +221,7 @@ opTable :: Array Word8 Op
 opTable = listArray (0x00, 0xff)
   [ OpBRK       , OpRd ORA InX, OpUndoc 0x02, OpUndoc 0x03
   , OpUndoc 0x04, OpRd ORA Zpg, OpRW ASL Zpg, OpUndoc 0x07
-  , OpStack PHP , OpRd ORA Imm, OpRW ASL Imm, OpUndoc 0x0b
+  , OpStack PHP , OpRd ORA Imm, OpAcc ASL   , OpUndoc 0x0b
   , OpUndoc 0x08, OpRd ORA Abs, OpRW ASL Abs, OpUndoc 0x0f
   , OpBranch BPL, OpRd ORA InY, OpUndoc 0x12, OpUndoc 0x13
   , OpUndoc 0x0c, OpRd ORA ZpX, OpRW ASL ZpX, OpUndoc 0x17
