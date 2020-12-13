@@ -447,7 +447,7 @@ computeFinalEffects debug memory =
                      case IntMap.lookup addr instructions of
                        Just instr -> putStrLn $ ppInstruction instr
                        Nothing -> pure ()
-                     putStrLn $ ppFinalEffect new
+                     putStr $ unlines $ ppFinalEffect new
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
                      when debug $ unless (IntSet.null dirty) $ putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
@@ -463,7 +463,7 @@ ppFinalEffects = mapM_ pp1 . IntMap.assocs
       putStrLn $
       ppWord16 (fromIntegral addr) ++ ": " ++
       take 16 (ppInstruction instr ++ repeat ' ') ++ " " ++
-      ppFinalEffect e
+      drop 23 (unlines (map (replicate 23 ' ' ++) (ppFinalEffect e)))
 
 --------------------------------------------------------------------------------
 -- * Pretty printing
@@ -514,9 +514,8 @@ ppBasicEffect e =
   , if branch e then "Branches" else ""
   ]
 
-ppFinalEffect :: FinalEffect -> String
+ppFinalEffect :: FinalEffect -> [String]
 ppFinalEffect e =
-  unlines $
   catMaybes $
   [ fmap (("LOOP: " ++) . ppBasicEffect) (loop e)
   , fmap (("RTS: " ++) . ppBasicEffect) (rts e)
