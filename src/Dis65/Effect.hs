@@ -244,43 +244,37 @@ lookupEffect state pc =
 computeEffectAt ::
   -- | instructions
   IntMap Instruction ->
-  -- | successors
-  IntMap [Addr] ->
   -- | state
   IntMap BasicEffect ->
   -- | address
   Int ->
   BasicEffect
-computeEffectAt instructions successors state pc =
+computeEffectAt instructions state pc =
   case IntMap.lookup pc instructions of
     Nothing -> jmpUnmapped pc
     Just instr ->
-     let
-       nexts = fromMaybe [] $ IntMap.lookup pc successors
-       nextEffect = foldr (+++) noEffect (map (lookupEffect state) nexts)
-     in
      case instr of
        Reg op ->
-         let effect = noEffect { registers = doOpReg op }
-         in effect >>> nextEffect
+         noEffect { registers = doOpReg op }
+         >>> lookupEffect state (pc + 1)
        Stack op ->
-         let effect = doOpStack op
-         in effect >>> nextEffect
+         doOpStack op
+         >>> lookupEffect state (pc + 1)
        Read op arg ->
-         let effect = doAddrArg Mem.readAddr arg >>> noEffect { registers = doOpR op }
-         in effect >>> nextEffect
+         doAddrArg Mem.readAddr arg >>> noEffect { registers = doOpR op }
+         >>> lookupEffect state (pc + 1 + sizeAddrArg arg)
        Write op arg ->
-         let effect = doAddrArg Mem.writeAddr arg >>> noEffect { registers = doOpW op }
-         in effect >>> nextEffect
+         doAddrArg Mem.writeAddr arg >>> noEffect { registers = doOpW op }
+         >>> lookupEffect state (pc + 1 + sizeAddrArg arg)
        Modify op arg ->
-         let effect = doAddrArg Mem.modifyAddr arg >>> noEffect { registers = doOpRW op }
-         in effect >>> nextEffect
+         doAddrArg Mem.modifyAddr arg >>> noEffect { registers = doOpRW op }
+         >>> lookupEffect state (pc + 1 + sizeAddrArg arg)
        Accumulator op ->
-         let effect = noEffect { registers = Reg.readA >>> doOpRW op >>> Reg.writeA }
-         in effect >>> nextEffect
-       Branch op arg ->
-         let effect = noEffect { registers = doOpBranch op, branch = True }
-         in effect >>> nextEffect
+         noEffect { registers = Reg.readA >>> doOpRW op >>> Reg.writeA }
+         >>> lookupEffect state (pc + 1)
+       Branch op (fromIntegral -> target) ->
+         noEffect { registers = doOpBranch op, branch = True }
+         >>> (lookupEffect state (pc + 2) +++ lookupEffect state target)
        JSR (fromIntegral -> target) ->
          let
            srEffect = lookupEffect state target
@@ -295,8 +289,8 @@ computeEffectAt instructions successors state pc =
          noEffect { rti = True }
        RTS ->
          noEffect { rts = True }
-       AbsJMP _ ->
-         nextEffect
+       AbsJMP (fromIntegral -> target) ->
+         lookupEffect state target
        IndJMP (fromIntegral -> target) ->
          noEffect { jmpInd = IntSet.singleton target }
        Undoc op ->
@@ -395,7 +389,7 @@ computeFinalEffects memory =
            Nothing -> pure state
            Just (addr, worklist') ->
              do let old = fromMaybe (error "invariant violation") (IntMap.lookup addr state) -- lookup should always succeed
-                let new = computeEffectAt instructions successors state addr
+                let new = computeEffectAt instructions state addr
                 let succs = fromMaybe mempty (IntMap.lookup addr successors)
                 putStrLn $ "**********" ++ ppWord16 (fromIntegral addr) ++ "**********"
                 putStrLn $ unwords $ "opcode:" : maybe "<none>" ppWord8 (IntMap.lookup addr memory) : "succs:" : map (ppWord16 . fromIntegral) succs
