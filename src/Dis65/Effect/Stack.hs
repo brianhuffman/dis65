@@ -20,11 +20,11 @@ instance Effect StackRange where
       lo3
         | lo1 == -255 = lo1
         | lo2 == -255 = lo2
-        | otherwise = max (-255) (lo1 + lo2)
+        | otherwise = max (-255) (min 255 (lo1 + lo2))
       hi3
         | hi1 == 255 = hi1
         | hi2 == 255 = hi2
-        | otherwise = min 255 (hi1 + hi2)
+        | otherwise = max (-255) (min 255 (hi1 + hi2))
 
 instance NoEffect StackEffect where
   noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
