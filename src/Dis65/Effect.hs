@@ -63,6 +63,16 @@ instance NoEffect BasicEffect where
     , branch = False
     }
 
+bottomEffect :: BasicEffect
+bottomEffect =
+  BasicEffect
+  { stack = noEffect
+  , memory = Mem.bottomMemEffect
+  , registers = Reg.bottomRegEffect
+  , subroutines = mempty
+  , branch = False
+  }
+
 --------------------------------------------------------------------------------
 -- * Effects of various instruction types
 
@@ -223,7 +233,7 @@ instance Monoid FinalEffect where
 bottomFinalEffect :: FinalEffect
 bottomFinalEffect =
   FinalEffect
-  { loop = Just noEffect
+  { loop = Just bottomEffect
   , rts = Nothing
   , rti = Nothing
   , brk = Nothing
