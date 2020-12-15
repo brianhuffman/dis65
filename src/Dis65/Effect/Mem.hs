@@ -1,8 +1,16 @@
-module Dis65.Effect.Mem where
+module Dis65.Effect.Mem
+  ( MemEffect
+  , bottomMemEffect
+  , readAddr
+  , writeAddr
+  , modifyAddr
+  , ppMemEffect
+  ) where
 
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
+import           Data.Set (Set)
+import qualified Data.Set as Set
 
+import Dis65.Instruction (AddrArg, ppAddrArg)
 import Dis65.Effect.Class
 
 {-
@@ -43,32 +51,100 @@ RW: ignores = no, preserves = no
 -}
 
 --------------------------------------------------------------------------------
--- * Registers
+-- Sets of AddrArg
 
+newtype ArgSet = ArgSet (Set AddrArg)
+  deriving (Eq, Show)
+
+empty :: ArgSet
+empty = ArgSet Set.empty
+
+single :: AddrArg -> ArgSet
+single x = ArgSet (Set.singleton x)
+
+union :: ArgSet -> ArgSet -> ArgSet
+union (ArgSet xs) (ArgSet ys) = ArgSet (Set.union xs ys)
+
+inter :: ArgSet -> ArgSet -> ArgSet
+inter (ArgSet xs) (ArgSet ys) = ArgSet (Set.intersection xs ys)
+
+diff :: ArgSet -> ArgSet -> ArgSet
+diff (ArgSet xs) (ArgSet ys) = ArgSet (Set.difference xs ys)
+
+elems :: ArgSet -> [AddrArg]
+elems (ArgSet xs) = Set.elems xs
 
 --------------------------------------------------------------------------------
--- * Memory
+-- Possibly-infinite set type
+
+data ArgSet' = Univ | Fin !ArgSet
+  deriving (Eq, Show)
+
+union' :: ArgSet' -> ArgSet' -> ArgSet'
+union' (Fin xs) (Fin ys) = Fin (union xs ys)
+union' _ _ = Univ
+
+inter' :: ArgSet' -> ArgSet' -> ArgSet'
+inter' Univ y = y
+inter' x Univ = x
+inter' (Fin xs) (Fin ys) = Fin (inter xs ys)
+
+diff' :: ArgSet -> ArgSet' -> ArgSet
+diff' xs Univ = empty
+diff' xs (Fin ys) = diff xs ys
+
+--------------------------------------------------------------------------------
+-- MemEffect
 
 -- | Read and write effects for sets of addresses.
-data MemEffect = MemEffect !IntSet !IntSet
+data MemEffect
+  = MemEffect
+  { loads :: !ArgSet
+  , stores :: !ArgSet
+  , overwrites :: !ArgSet'
+  }
   deriving (Eq, Show)
 
 instance Effect MemEffect where
 
-  MemEffect r1 w1 +++ MemEffect r2 w2 =
-    MemEffect (IntSet.union r1 r2) (IntSet.union w1 w2)
+  e1 +++ e2 =
+    MemEffect
+    { loads = union (loads e1) (loads e2)
+    , stores = union (stores e1) (stores e2)
+    , overwrites = inter' (overwrites e1) (overwrites e2)
+    }
 
-  MemEffect r1 w1 >>> MemEffect r2 w2 =
-    MemEffect (IntSet.union r1 (IntSet.difference r2 w1)) (IntSet.union w1 w2)
+  e1 >>> e2 =
+    MemEffect
+    { loads = union (loads e1) (diff' (loads e2) (overwrites e1))
+    , stores = union (stores e1) (stores e2)
+    , overwrites = union' (overwrites e1) (overwrites e2)
+    }
 
 instance NoEffect MemEffect where
-  noEffect = MemEffect IntSet.empty IntSet.empty
+  noEffect = MemEffect empty empty (Fin empty)
 
-readAddr :: Int -> MemEffect
-readAddr a = MemEffect (IntSet.singleton a) IntSet.empty
+-- TODO: make a type class for this
+bottomMemEffect :: MemEffect
+bottomMemEffect = MemEffect empty empty Univ
 
-writeAddr :: Int -> MemEffect
-writeAddr a = MemEffect IntSet.empty (IntSet.singleton a)
+--------------------------------------------------------------------------------
+-- Effect constructors
 
-modifyAddr :: Int -> MemEffect
-modifyAddr a = MemEffect (IntSet.singleton a) (IntSet.singleton a)
+readAddr :: AddrArg -> MemEffect
+readAddr a = MemEffect (single a) empty (Fin empty)
+
+writeAddr :: AddrArg -> MemEffect
+writeAddr a = MemEffect empty (single a) (Fin (single a))
+
+modifyAddr :: AddrArg -> MemEffect
+modifyAddr a = MemEffect (single a) (single a) (Fin (single a))
+
+--------------------------------------------------------------------------------
+-- Pretty printing
+
+ppMemEffect :: MemEffect -> String
+ppMemEffect (MemEffect r w _) =
+  unwords $
+  "READS" : map ppAddrArg (elems r) ++
+  "WRITES" : map ppAddrArg (elems w)

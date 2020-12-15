@@ -27,7 +27,7 @@ import Dis65.Instruction
 data BasicEffect =
   BasicEffect
   { stack :: !Stack.StackEffect
-  , memory :: !(Map AddrMode Mem.MemEffect)
+  , memory :: !Mem.MemEffect
   , registers :: !Reg.RegEffect
   , subroutines :: !IntSet
   , branch :: !Bool
@@ -38,7 +38,7 @@ instance Effect BasicEffect where
   e1 +++ e2 =
     BasicEffect
     { stack = stack e1 +++ stack e2
-    , memory = Map.unionWith (+++) (memory e1) (memory e2)
+    , memory = memory e1 +++ memory e2
     , registers = registers e1 +++ registers e2
     , subroutines = subroutines e1 <> subroutines e2
     , branch = branch e1 || branch e2
@@ -47,7 +47,7 @@ instance Effect BasicEffect where
   e1 >>> e2 =
     BasicEffect
     { stack = stack e1 >>> stack e2
-    , memory = Map.unionWith (>>>) (memory e1) (memory e2)
+    , memory = memory e1 >>> memory e2
     , registers = registers e1 >>> registers e2
     , subroutines = subroutines e1 <> subroutines e2
     , branch = branch e1 || branch e2
@@ -57,7 +57,7 @@ instance NoEffect BasicEffect where
   noEffect =
     BasicEffect
     { stack = noEffect
-    , memory = Map.empty
+    , memory = noEffect
     , registers = noEffect
     , subroutines = mempty
     , branch = False
@@ -160,20 +160,18 @@ doAddrMode =
     AbY -> Reg.readY
     AbX -> Reg.readX
 
-doAddrArg :: (Addr -> Mem.MemEffect) -> AddrArg -> BasicEffect
-doAddrArg rw =
-  \case
-    IndirectX z -> noEffect { memory = go InX z, registers = Reg.readX }
-    ZeroPage z  -> noEffect { memory = go Zpg z }
+doAddrArg :: (AddrArg -> Mem.MemEffect) -> AddrArg -> BasicEffect
+doAddrArg rw arg =
+  case arg of
+    IndirectX z -> noEffect { memory = rw arg, registers = Reg.readX }
+    ZeroPage z  -> noEffect { memory = rw arg }
     Immediate _ -> noEffect
-    Absolute w  -> noEffect { memory = go Abs w }
-    IndirectY z -> noEffect { memory = go InY z, registers = Reg.readY }
-    ZeroPageX z -> noEffect { memory = go ZpX z, registers = Reg.readX }
-    ZeroPageY z -> noEffect { memory = go ZpY z, registers = Reg.readY }
-    AbsoluteY w -> noEffect { memory = go AbY w, registers = Reg.readY }
-    AbsoluteX w -> noEffect { memory = go AbX w, registers = Reg.readX }
-  where
-    go mode addr = Map.singleton mode $! rw (fromIntegral addr)
+    Absolute w  -> noEffect { memory = rw arg }
+    IndirectY z -> noEffect { memory = rw arg, registers = Reg.readY }
+    ZeroPageX z -> noEffect { memory = rw arg, registers = Reg.readX }
+    ZeroPageY z -> noEffect { memory = rw arg, registers = Reg.readY }
+    AbsoluteY w -> noEffect { memory = rw arg, registers = Reg.readY }
+    AbsoluteX w -> noEffect { memory = rw arg, registers = Reg.readX }
 
 --------------------------------------------------------------------------------
 -- * FinalEffect
@@ -470,18 +468,6 @@ ppFinalEffects = mapM_ pp1 . IntMap.assocs
 -- * Pretty printing
 
 
-ppMemEffects :: Map AddrMode Mem.MemEffect -> String
-ppMemEffects m = unwords (("READS" : reads) ++ ("WRITES" : writes))
-  where
-    reads =
-      do (mode, Mem.MemEffect r _) <- Map.assocs m
-         addr <- IntSet.elems r
-         [ppMemAddr mode addr]
-    writes =
-      do (mode, Mem.MemEffect _ w) <- Map.assocs m
-         addr <- IntSet.elems w
-         [ppMemAddr mode addr]
-
 ppMemAddr :: AddrMode -> Int -> String
 ppMemAddr mode addr =
   case mode of
@@ -510,7 +496,7 @@ ppBasicEffect e =
   filter (not . null) $
   [ Reg.ppRegEffect (registers e)
   , Stack.ppStackEffect (stack e)
-  , ppMemEffects (memory e)
+  , Mem.ppMemEffect (memory e)
   , ppSubroutines (subroutines e)
   , if branch e then "Branches" else ""
   ]
