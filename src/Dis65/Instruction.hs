@@ -87,7 +87,7 @@ data AddrArg
   | ZeroPageY Word8
   | AbsoluteY Word16
   | AbsoluteX Word16
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 sizeAddrArg :: AddrArg -> Int
 sizeAddrArg =
