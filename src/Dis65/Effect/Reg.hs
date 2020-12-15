@@ -39,6 +39,12 @@ instance Semigroup Regs where
 instance Monoid Regs where
   mempty = Regs 0
 
+allRegs :: Regs
+allRegs = Regs (complement 0)
+
+inter :: Regs -> Regs -> Regs
+inter (Regs x) (Regs y) = Regs (x .&. y)
+
 diff :: Regs -> Regs -> Regs
 diff (Regs x) (Regs y) = Regs (x .&. complement y)
 
@@ -66,25 +72,28 @@ regP = regC <> regZ <> regI <> regD <> regV <> regN
 -- * Register effects
 
 -- | Read and write effects for combinations of CPU registers.
-data RegEffect = RegEffect !Regs !Regs -- reads, writes
+data RegEffect = RegEffect !Regs !Regs !Regs -- reads, writes, clears
   deriving (Eq, Show)
 
 instance Effect RegEffect where
 
-  RegEffect r1 w1 +++ RegEffect r2 w2 =
-    RegEffect (r1 <> r2) (w1 <> w2)
+  RegEffect r1 w1 c1 +++ RegEffect r2 w2 c2 =
+    RegEffect (r1 <> r2) (w1 <> w2) (inter c1 c2)
 
-  RegEffect r1 w1 >>> RegEffect r2 w2 =
-    RegEffect (r1 <> diff r2 w1) (w1 <> w2)
+  RegEffect r1 w1 c1 >>> RegEffect r2 w2 c2 =
+    RegEffect (r1 <> diff r2 c1) (w1 <> w2) (c1 <> c2)
 
 instance NoEffect RegEffect where
-  noEffect = RegEffect mempty mempty
+  noEffect = RegEffect mempty mempty mempty
+
+bottomRegEffect :: RegEffect
+bottomRegEffect = RegEffect mempty mempty allRegs
 
 readReg :: Reg -> RegEffect
-readReg r = RegEffect (reg r) mempty
+readReg r = RegEffect (reg r) mempty mempty
 
 writeReg :: Reg -> RegEffect
-writeReg r = RegEffect mempty (reg r)
+writeReg r = RegEffect mempty (reg r) (reg r)
 
 readA, readX, readY, readS, readC, readZ, readI, readD, readV, readN :: RegEffect
 readA = readReg A
@@ -99,7 +108,7 @@ readV = readReg V
 readN = readReg N
 
 readP :: RegEffect
-readP = RegEffect regP mempty
+readP = RegEffect regP mempty mempty
 
 writeA, writeX, writeY, writeS, writeC, writeZ, writeI, writeD, writeV, writeN :: RegEffect
 writeA = writeReg A
@@ -114,7 +123,7 @@ writeV = writeReg V
 writeN = writeReg N
 
 writeP :: RegEffect
-writeP = RegEffect mempty regP
+writeP = RegEffect mempty regP regP
 
 writeNZ :: RegEffect
 writeNZ = writeN >>> writeZ
@@ -130,4 +139,4 @@ ppRegs (Regs mask) = concatMap showReg [A,X,Y,S,C,Z,I,D,V,N]
   where showReg r = if testBit mask (regBit r) then show r else "-"
 
 ppRegEffect :: RegEffect -> String
-ppRegEffect (RegEffect r w) = concat [ppRegs r, "/", ppRegs w]
+ppRegEffect (RegEffect r w _) = concat [ppRegs r, "/", ppRegs w]
