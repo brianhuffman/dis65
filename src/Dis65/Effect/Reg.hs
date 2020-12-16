@@ -86,8 +86,8 @@ instance Effect RegEffect where
 instance NoEffect RegEffect where
   noEffect = RegEffect mempty mempty mempty
 
-bottomRegEffect :: RegEffect
-bottomRegEffect = RegEffect mempty mempty allRegs
+instance Bottom RegEffect where
+  bottom = RegEffect mempty mempty allRegs
 
 readReg :: Reg -> RegEffect
 readReg r = RegEffect (reg r) mempty mempty

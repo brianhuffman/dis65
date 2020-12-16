@@ -1,6 +1,5 @@
 module Dis65.Effect.Mem
   ( MemEffect
-  , bottomMemEffect
   , readAddr
   , writeAddr
   , modifyAddr
@@ -124,9 +123,8 @@ instance Effect MemEffect where
 instance NoEffect MemEffect where
   noEffect = MemEffect empty empty (Fin empty)
 
--- TODO: make a type class for this
-bottomMemEffect :: MemEffect
-bottomMemEffect = MemEffect empty empty Univ
+instance Bottom MemEffect where
+  bottom = MemEffect empty empty Univ
 
 --------------------------------------------------------------------------------
 -- Effect constructors

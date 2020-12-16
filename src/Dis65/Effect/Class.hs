@@ -5,6 +5,11 @@ import Control.Applicative (liftA2)
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
+-- | The class of types that can be partially ordered with a bottom element.
+class Bottom a where
+  -- | The least element of a type, for use in computing least fixed-points.
+  bottom :: a
+
 class Effect a where
 
   -- | Parallel composition. It should be associative, commutative,

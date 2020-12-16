@@ -63,15 +63,15 @@ instance NoEffect BasicEffect where
     , branch = False
     }
 
-bottomEffect :: BasicEffect
-bottomEffect =
-  BasicEffect
-  { stack = noEffect
-  , memory = Mem.bottomMemEffect
-  , registers = Reg.bottomRegEffect
-  , subroutines = mempty
-  , branch = False
-  }
+instance Bottom BasicEffect where
+  bottom =
+    BasicEffect
+    { stack = noEffect
+    , memory = bottom
+    , registers = bottom
+    , subroutines = mempty
+    , branch = False
+    }
 
 --------------------------------------------------------------------------------
 -- * Effects of various instruction types
@@ -230,17 +230,17 @@ instance Monoid FinalEffect where
     , jmpInd = IntMap.empty
     }
 
-bottomFinalEffect :: FinalEffect
-bottomFinalEffect =
-  FinalEffect
-  { loop = Just bottomEffect
-  , rts = Nothing
-  , rti = Nothing
-  , brk = Nothing
-  , undoc = Map.empty
-  , jmpAbs = IntMap.empty
-  , jmpInd = IntMap.empty
-  }
+instance Bottom FinalEffect where
+  bottom =
+    FinalEffect
+    { loop = Just bottom
+    , rts = Nothing
+    , rti = Nothing
+    , brk = Nothing
+    , undoc = Map.empty
+    , jmpAbs = IntMap.empty
+    , jmpInd = IntMap.empty
+    }
 
 thenFinalEffect :: BasicEffect -> FinalEffect -> FinalEffect
 thenFinalEffect e1 e2 =
@@ -439,7 +439,7 @@ computeFinalEffects debug memory =
   do let instructions = decodeInstructions memory
      let successors = IntMap.mapWithKey computeSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
-     let state0 = IntMap.map (const bottomFinalEffect) instructions
+     let state0 = IntMap.map (const bottom) instructions
      let worklist0 = IntMap.keysSet instructions
      let
        go :: IntSet -> IntMap FinalEffect -> IO (IntMap FinalEffect)
