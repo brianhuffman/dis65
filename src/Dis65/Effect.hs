@@ -66,7 +66,7 @@ instance NoEffect BasicEffect where
 instance Bottom BasicEffect where
   bottom =
     BasicEffect
-    { stack = noEffect
+    { stack = bottom
     , memory = bottom
     , registers = bottom
     , subroutines = mempty

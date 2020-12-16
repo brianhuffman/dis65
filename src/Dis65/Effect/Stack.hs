@@ -26,26 +26,42 @@ instance Effect StackRange where
         | hi2 == 255 = hi2
         | otherwise = max (-255) (min 255 (hi1 + hi2))
 
-instance NoEffect StackEffect where
-  noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
-
 -- | A 'StackEffect' contains two 'StackRanges': The first is the
 -- range of possible stack heights (relative to 0 at the start) that
 -- the computation can take on at any time during its execution. The
--- second is the range of possible stack heights at its conclusion.
+-- second is the range of possible stack heights at its conclusion,
+-- which may be empty if the computation is not known to terminate.
 --
 -- Invariants: The first range must include 0, and it must also
 -- include the second range.
-data StackEffect = StackEffect !StackRange !StackRange
+data StackEffect
+  = StackEffect !StackRange !StackRange
+  | LoopStackEffect !StackRange
   deriving (Eq, Show)
 
 instance Effect StackEffect where
 
   StackEffect mid1 end1 +++ StackEffect mid2 end2 =
     StackEffect (mid1 +++ mid2) (end1 +++ end2)
+  StackEffect mid1 end1 +++ LoopStackEffect mid2 =
+    StackEffect (mid1 +++ mid2) end1
+  LoopStackEffect mid1 +++ StackEffect mid2 end2 =
+    StackEffect (mid1 +++ mid2) end2
+  LoopStackEffect mid1 +++ LoopStackEffect mid2 =
+    LoopStackEffect (mid1 +++ mid2)
 
   StackEffect mid1 end1 >>> StackEffect mid2 end2 =
     StackEffect (mid1 +++ (end1 >>> mid2)) (end1 >>> end2)
+  StackEffect mid1 end1 >>> LoopStackEffect mid2 =
+    LoopStackEffect (mid1 +++ (end1 >>> mid2))
+  LoopStackEffect mid1 >>> _ =
+    LoopStackEffect mid1
+
+instance NoEffect StackEffect where
+  noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
+
+instance Bottom StackEffect where
+  bottom = LoopStackEffect (StackRange 0 0)
 
 push :: StackEffect
 push = StackEffect (StackRange 0 1) (StackRange 1 1)
@@ -61,3 +77,6 @@ ppStackEffect (StackEffect (StackRange a b) (StackRange c d))
   | c /= d = show (a,c,d,b)
   | b == max 0 c = show (0 - a) ++ "->" ++ show (c - a)
   | otherwise = show (0 - a) ++ "->" ++ show (b - a) ++ "->" ++ show (c - a)
+ppStackEffect (LoopStackEffect (StackRange a b))
+  | (a, b) == (0, 0) = ""
+  | otherwise = show (a, b)
