@@ -20,6 +20,88 @@ import qualified Dis65.Effect.Reg as Reg
 import Dis65.Instruction
 
 --------------------------------------------------------------------------------
+-- * FinalStackEffect
+
+data FinalStackEffect =
+  FinalStackEffect
+  { loop :: Maybe Stack.StackEffect
+  , rts :: Maybe Stack.StackEffect
+  , rti :: Maybe Stack.StackEffect
+  , brk :: Maybe Stack.StackEffect
+  , undoc :: Map Word8 Stack.StackEffect
+  , jmpAbs :: IntMap Stack.StackEffect
+  , jmpInd :: IntMap Stack.StackEffect
+  }
+  deriving (Eq, Show)
+
+combineMaybe :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
+combineMaybe _ Nothing y = y
+combineMaybe _ x Nothing = x
+combineMaybe f (Just x) (Just y) = Just (f x y)
+
+instance Semigroup FinalStackEffect where
+  e1 <> e2 =
+    FinalStackEffect
+    { loop = combineMaybe (+++) (loop e1) (loop e2)
+    , rts = combineMaybe (+++) (rts e1) (rts e2)
+    , rti = combineMaybe (+++) (rti e1) (rti e2)
+    , brk = combineMaybe (+++) (brk e1) (brk e2)
+    , undoc = Map.unionWith (+++) (undoc e1) (undoc e2)
+    , jmpAbs = IntMap.unionWith (+++) (jmpAbs e1) (jmpAbs e2)
+    , jmpInd = IntMap.unionWith (+++) (jmpInd e1) (jmpInd e2)
+    }
+
+instance Monoid FinalStackEffect where
+  mempty =
+    FinalStackEffect
+    { loop = Nothing
+    , rts = Nothing
+    , rti = Nothing
+    , brk = Nothing
+    , undoc = Map.empty
+    , jmpAbs = IntMap.empty
+    , jmpInd = IntMap.empty
+    }
+
+instance Bottom FinalStackEffect where
+  bottom =
+    FinalStackEffect
+    { loop = Just bottom
+    , rts = Nothing
+    , rti = Nothing
+    , brk = Nothing
+    , undoc = Map.empty
+    , jmpAbs = IntMap.empty
+    , jmpInd = IntMap.empty
+    }
+
+thenFinalStackEffect :: Stack.StackEffect -> FinalStackEffect -> FinalStackEffect
+thenFinalStackEffect e1 e2 =
+  FinalStackEffect
+  { loop = fmap (e1 >>>) (loop e2)
+  , rts = fmap (e1 >>>) (rts e2)
+  , rti = fmap (e1 >>>) (rti e2)
+  , brk = fmap (e1 >>>) (brk e2)
+  , undoc = fmap (e1 >>>) (undoc e2)
+  , jmpAbs = fmap (e1 >>>) (jmpAbs e2)
+  , jmpInd = fmap (e1 >>>) (jmpInd e2)
+  }
+
+jsrFinalStackEffect :: FinalStackEffect -> FinalStackEffect -> FinalStackEffect
+jsrFinalStackEffect subroutine after =
+  case rts subroutine of
+    Nothing -> thenFinalStackEffect push2 subroutine
+    Just body ->
+      thenFinalStackEffect push2 subroutine { rts = Nothing } <>
+      thenFinalStackEffect (push2 >>> body >>> pull2) after
+
+push2 :: Stack.StackEffect
+push2 = Stack.push >>> Stack.push
+
+pull2 :: Stack.StackEffect
+pull2 = Stack.pull >>> Stack.pull
+
+--------------------------------------------------------------------------------
 -- * BasicEffect
 
 data BasicEffect =
@@ -71,12 +153,6 @@ instance Bottom BasicEffect where
     , branch = False
     }
 
-push2 :: BasicEffect
-push2 = noEffect { stack = Stack.push >>> Stack.push }
-
-pull2 :: BasicEffect
-pull2 = noEffect { stack = Stack.pull >>> Stack.pull }
-
 --------------------------------------------------------------------------------
 -- * FinalEffect
 
@@ -85,76 +161,88 @@ pull2 = noEffect { stack = Stack.pull >>> Stack.pull }
 
 data FinalEffect =
   FinalEffect
-  { loop :: Maybe BasicEffect
-  , rts :: Maybe BasicEffect
-  , rti :: Maybe BasicEffect
-  , brk :: Maybe BasicEffect
-  , undoc :: Map Word8 BasicEffect
-  , jmpAbs :: IntMap BasicEffect
-  , jmpInd :: IntMap BasicEffect
+  { stack' :: !FinalStackEffect
+  , memory' :: !Mem.MemEffect
+  , registers' :: !Reg.RegEffect
+  , subroutines' :: !IntSet
+  , branch' :: !Bool
   }
   deriving (Eq, Show)
-
-combineMaybe :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
-combineMaybe _ Nothing y = y
-combineMaybe _ x Nothing = x
-combineMaybe f (Just x) (Just y) = Just (f x y)
 
 instance Semigroup FinalEffect where
   e1 <> e2 =
     FinalEffect
-    { loop = combineMaybe (+++) (loop e1) (loop e2)
-    , rts = combineMaybe (+++) (rts e1) (rts e2)
-    , rti = combineMaybe (+++) (rti e1) (rti e2)
-    , brk = combineMaybe (+++) (brk e1) (brk e2)
-    , undoc = Map.unionWith (+++) (undoc e1) (undoc e2)
-    , jmpAbs = IntMap.unionWith (+++) (jmpAbs e1) (jmpAbs e2)
-    , jmpInd = IntMap.unionWith (+++) (jmpInd e1) (jmpInd e2)
+    { stack' = stack' e1 <> stack' e2
+    , memory' = memory' e1 +++ memory' e2
+    , registers' = registers' e1 +++ registers' e2
+    , subroutines' = subroutines' e1 <> subroutines' e2
+    , branch' = branch' e1 || branch' e2
     }
 
 instance Monoid FinalEffect where
   mempty =
     FinalEffect
-    { loop = Nothing
-    , rts = Nothing
-    , rti = Nothing
-    , brk = Nothing
-    , undoc = Map.empty
-    , jmpAbs = IntMap.empty
-    , jmpInd = IntMap.empty
+    { stack' = bottom
+    , memory' = bottom
+    , registers' = bottom
+    , subroutines' = mempty
+    , branch' = False
     }
 
 instance Bottom FinalEffect where
   bottom =
     FinalEffect
-    { loop = Just bottom
-    , rts = Nothing
-    , rti = Nothing
-    , brk = Nothing
-    , undoc = Map.empty
-    , jmpAbs = IntMap.empty
-    , jmpInd = IntMap.empty
+    { stack' = bottom
+    , memory' = bottom
+    , registers' = bottom
+    , subroutines' = mempty
+    , branch' = False
     }
 
 thenFinalEffect :: BasicEffect -> FinalEffect -> FinalEffect
 thenFinalEffect e1 e2 =
   FinalEffect
-  { loop = fmap (e1 >>>) (loop e2)
-  , rts = fmap (e1 >>>) (rts e2)
-  , rti = fmap (e1 >>>) (rti e2)
-  , brk = fmap (e1 >>>) (brk e2)
-  , undoc = fmap (e1 >>>) (undoc e2)
-  , jmpAbs = fmap (e1 >>>) (jmpAbs e2)
-  , jmpInd = fmap (e1 >>>) (jmpInd e2)
+  { stack' = thenFinalStackEffect (stack e1) (stack' e2)
+  , memory' = memory e1 >>> memory' e2
+  , registers' = registers e1 >>> registers' e2
+  , subroutines' = subroutines e1 <> subroutines' e2
+  , branch' = branch e1 || branch' e2
   }
 
 jsrFinalEffect :: FinalEffect -> FinalEffect -> FinalEffect
 jsrFinalEffect subroutine after =
-  case rts subroutine of
-    Nothing -> thenFinalEffect push2 subroutine
-    Just body ->
-      thenFinalEffect push2 subroutine { rts = Nothing } <>
-      thenFinalEffect (push2 >>> body >>> pull2) after
+  FinalEffect
+  { stack' = jsrFinalStackEffect (stack' subroutine) (stack' after)
+  , memory' = memory' subroutine >>> memory' after
+  , registers' = registers' subroutine >>> registers' after
+  , subroutines' = subroutines' subroutine <> subroutines' after -- Should we only include 'after'?
+  , branch' = branch' subroutine || branch' after
+  }
+
+brkFinalEffect :: FinalEffect
+brkFinalEffect =
+  mempty { stack' = mempty { brk = Just noEffect } }
+
+rtiFinalEffect :: FinalEffect
+rtiFinalEffect =
+  mempty { stack' = mempty { rti = Just noEffect } }
+
+rtsFinalEffect :: FinalEffect
+rtsFinalEffect =
+  mempty { stack' = mempty { rts = Just noEffect } }
+
+jmpAbsFinalEffect :: Int -> FinalEffect
+jmpAbsFinalEffect addr =
+  mempty { stack' = mempty { jmpAbs = IntMap.singleton addr noEffect } }
+
+jmpIndFinalEffect :: Word16 -> FinalEffect
+jmpIndFinalEffect addr =
+  mempty { stack' = mempty { jmpInd = IntMap.singleton (fromIntegral addr) noEffect } }
+
+undocFinalEffect :: Word8 -> FinalEffect
+undocFinalEffect op =
+  mempty { stack' = mempty { undoc = Map.singleton op noEffect } }
+
 
 --------------------------------------------------------------------------------
 -- * Pretty printing
@@ -176,19 +264,32 @@ ppBasicEffect e =
   , if branch e then "Branches" else ""
   ]
 
-ppFinalEffect :: FinalEffect -> [String]
-ppFinalEffect e =
+ppFinalStackEffect :: FinalStackEffect -> String
+ppFinalStackEffect e =
+  unwords $
   catMaybes $
-  [ fmap (("LOOP: " ++) . ppBasicEffect) (loop e)
-  , fmap (("RTS: " ++) . ppBasicEffect) (rts e)
-  , fmap (("RTI: " ++) . ppBasicEffect) (rti e)
-  , fmap (("BRK: " ++) . ppBasicEffect) (brk e)
+  [ fmap (prefix "LOOP" . Stack.ppStackEffect) (loop e)
+  , fmap (prefix "RTS" . Stack.ppStackEffect) (rts e)
+  , fmap (prefix "RTI" . Stack.ppStackEffect) (rti e)
+  , fmap (prefix "BRK" . Stack.ppStackEffect) (brk e)
   ] ++
-  [ Just (ppWord8 op ++ ": " ++ ppBasicEffect be)
+  [ Just $ prefix (ppWord8 op) $ Stack.ppStackEffect be
   | (op, be) <- Map.assocs (undoc e) ]
   ++
-  [ Just ("JMP $" ++ ppWord16 (fromIntegral a) ++ ": " ++ ppBasicEffect be)
+  [ Just $ prefix ("JMP $" ++ ppWord16 (fromIntegral a)) $ Stack.ppStackEffect be
   | (a, be) <- IntMap.assocs (jmpAbs e) ]
   ++
-  [ Just ("JMP ($" ++ ppWord16 (fromIntegral a) ++ "): " ++ ppBasicEffect be)
+  [ Just $ prefix ("JMP ($" ++ ppWord16 (fromIntegral a) ++ ")") $ Stack.ppStackEffect be
   | (a, be) <- IntMap.assocs (jmpInd e) ]
+  where
+    prefix s1 s2 = if null s2 then s1 else s1 ++ ": " ++ s2
+
+ppFinalEffect :: FinalEffect -> [String]
+ppFinalEffect e =
+  filter (not . null) $
+  [ Reg.ppRegEffect (registers' e)
+  , ppFinalStackEffect (stack' e)
+  , Mem.ppMemEffect (memory' e)
+  , ppSubroutines (subroutines' e)
+  , if branch' e then "Branches" else ""
+  ]

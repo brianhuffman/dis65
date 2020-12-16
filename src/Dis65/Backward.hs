@@ -9,7 +9,6 @@ import qualified Data.IntMap as IntMap
 import           Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import           Data.Maybe
-import qualified Data.Map.Strict as Map
 import           Data.Word
 
 import           Dis65.Effect.Class
@@ -154,13 +153,10 @@ computePredecessors successors =
      b <- bs
      pure (b, [a])
 
-jmpUnmapped :: Int -> FinalEffect
-jmpUnmapped pc = mempty { jmpAbs = IntMap.singleton pc noEffect }
-
 lookupEffect :: IntMap FinalEffect -> Int -> FinalEffect
 lookupEffect state pc =
   case IntMap.lookup pc state of
-    Nothing -> jmpUnmapped pc
+    Nothing -> jmpAbsFinalEffect pc
     Just e -> e
 
 computeEffectAt ::
@@ -173,7 +169,7 @@ computeEffectAt ::
   FinalEffect
 computeEffectAt instructions state pc =
   case IntMap.lookup pc instructions of
-    Nothing -> jmpUnmapped pc
+    Nothing -> jmpAbsFinalEffect pc -- should never happen
     Just instr ->
      case instr of
        Reg op ->
@@ -205,17 +201,17 @@ computeEffectAt instructions state pc =
          in
            jsrFinalEffect subEffect afterEffect
        BRK ->
-         mempty { brk = Just noEffect }
+         brkFinalEffect
        RTI ->
-         mempty { rti = Just noEffect }
+         rtiFinalEffect
        RTS ->
-         mempty { rts = Just noEffect }
-       AbsJMP (fromIntegral -> target) ->
-         lookupEffect state target
-       IndJMP (fromIntegral -> target) ->
-         mempty { jmpInd = IntMap.singleton target noEffect }
+         rtsFinalEffect
+       AbsJMP target ->
+         lookupEffect state (fromIntegral target)
+       IndJMP target ->
+         jmpIndFinalEffect target
        Undoc op ->
-         mempty { undoc = Map.singleton op noEffect }
+         undocFinalEffect op
 
 getAddr :: IntMap Word8 -> Addr -> AddrMode -> Maybe Addr
 getAddr mem pc =
