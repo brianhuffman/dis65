@@ -80,9 +80,6 @@ instance Effect StackEffect where
 instance NoEffect StackEffect where
   noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
 
-instance Bottom StackEffect where
-  bottom = LoopStackEffect (StackRange 0 0)
-
 push :: StackEffect
 push = StackEffect (StackRange 0 1) (StackRange 1 1)
 

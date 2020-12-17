@@ -57,16 +57,6 @@ instance NoEffect BasicEffect where
     , branch = False
     }
 
-instance Bottom BasicEffect where
-  bottom =
-    BasicEffect
-    { stack = bottom
-    , memory = bottom
-    , registers = bottom
-    , subroutines = mempty
-    , branch = False
-    }
-
 --------------------------------------------------------------------------------
 -- * FinalEffect
 
