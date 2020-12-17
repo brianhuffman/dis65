@@ -102,13 +102,14 @@ ppStackRange (StackRange a b)
 
 data FinalStackEffect =
   FinalStackEffect
-  { loop :: Maybe StackRange
-  , rts :: Maybe StackEffect
-  , rti :: Maybe StackEffect
-  , brk :: Maybe StackEffect
-  , undoc :: Map Word8 StackEffect
-  , jmpAbs :: IntMap StackEffect
-  , jmpInd :: IntMap StackEffect
+  { mid :: StackRange -- ^ Possible range of stack heights over duration of computation
+  , loop :: !Bool -- ^ Whether it is possible to enter an infinite loop
+  , rts :: Maybe StackRange
+  , rti :: Maybe StackRange
+  , brk :: Maybe StackRange
+  , undoc :: Map Word8 StackRange
+  , jmpAbs :: IntMap StackRange
+  , jmpInd :: IntMap StackRange
   }
   deriving (Eq, Show)
 
@@ -117,10 +118,12 @@ combineMaybe _ Nothing y = y
 combineMaybe _ x Nothing = x
 combineMaybe f (Just x) (Just y) = Just (f x y)
 
+-- Should be Choice
 instance Semigroup FinalStackEffect where
   e1 <> e2 =
     FinalStackEffect
-    { loop = combineMaybe (+++) (loop e1) (loop e2)
+    { mid = mid e1 +++ mid e2
+    , loop = loop e1 || loop e2
     , rts = combineMaybe (+++) (rts e1) (rts e2)
     , rti = combineMaybe (+++) (rti e1) (rti e2)
     , brk = combineMaybe (+++) (brk e1) (brk e2)
@@ -132,7 +135,8 @@ instance Semigroup FinalStackEffect where
 instance Monoid FinalStackEffect where
   mempty =
     FinalStackEffect
-    { loop = Nothing
+    { mid = noEffect
+    , loop = False
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
@@ -144,7 +148,8 @@ instance Monoid FinalStackEffect where
 instance Bottom FinalStackEffect where
   bottom =
     FinalStackEffect
-    { loop = Just noEffect
+    { mid = noEffect
+    , loop = True
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
@@ -154,20 +159,17 @@ instance Bottom FinalStackEffect where
     }
 
 thenFinalStackEffect :: StackEffect -> FinalStackEffect -> FinalStackEffect
-thenFinalStackEffect e1 e2 =
+thenFinalStackEffect (StackEffect mid1 end1) e2 =
   FinalStackEffect
-  { loop = fmap f (loop e2)
-  , rts = fmap (e1 >>>) (rts e2)
-  , rti = fmap (e1 >>>) (rti e2)
-  , brk = fmap (e1 >>>) (brk e2)
-  , undoc = fmap (e1 >>>) (undoc e2)
-  , jmpAbs = fmap (e1 >>>) (jmpAbs e2)
-  , jmpInd = fmap (e1 >>>) (jmpInd e2)
+  { mid = mid1 +++ (end1 >>> mid e2)
+  , loop = loop e2
+  , rts = fmap (end1 >>>) (rts e2)
+  , rti = fmap (end1 >>>) (rti e2)
+  , brk = fmap (end1 >>>) (brk e2)
+  , undoc = fmap (end1 >>>) (undoc e2)
+  , jmpAbs = fmap (end1 >>>) (jmpAbs e2)
+  , jmpInd = fmap (end1 >>>) (jmpInd e2)
   }
-  where
-    f mid2 =
-      case e1 of
-        StackEffect mid1 end1 -> mid1 +++ (end1 >>> mid2)
 
 jsrFinalStackEffect :: FinalStackEffect -> FinalStackEffect -> FinalStackEffect
 jsrFinalStackEffect subroutine after =
@@ -175,27 +177,28 @@ jsrFinalStackEffect subroutine after =
     Nothing -> thenFinalStackEffect push2 subroutine
     Just body ->
       thenFinalStackEffect push2 subroutine { rts = Nothing } <>
-      thenFinalStackEffect (push2 >>> body >>> pull2) after
+      thenFinalStackEffect (push2 >>> StackEffect (mid subroutine) body >>> pull2) after
 
 ppFinalStackEffect :: FinalStackEffect -> String
 ppFinalStackEffect e =
   unwords $
   catMaybes $
-  [ fmap (prefix "LOOP" . ppStackRange) (loop e)
-  , fmap (prefix "RTS" . ppStackEffect) (rts e)
-  , fmap (prefix "RTI" . ppStackEffect) (rti e)
-  , fmap (prefix "BRK" . ppStackEffect) (brk e)
+  [ if loop e then Just (prefix "LOOP" (ppStackRange (mid e))) else Nothing
+  , fmap (prefix "RTS" . ppStackEffect') (rts e)
+  , fmap (prefix "RTI" . ppStackEffect') (rti e)
+  , fmap (prefix "BRK" . ppStackEffect') (brk e)
   ] ++
-  [ Just $ prefix (ppWord8 op) $ ppStackEffect be
+  [ Just $ prefix (ppWord8 op) $ ppStackEffect' be
   | (op, be) <- Map.assocs (undoc e) ]
   ++
-  [ Just $ prefix ("JMP $" ++ ppWord16 (fromIntegral a)) $ ppStackEffect be
+  [ Just $ prefix ("JMP $" ++ ppWord16 (fromIntegral a)) $ ppStackEffect' be
   | (a, be) <- IntMap.assocs (jmpAbs e) ]
   ++
-  [ Just $ prefix ("JMP ($" ++ ppWord16 (fromIntegral a) ++ ")") $ ppStackEffect be
+  [ Just $ prefix ("JMP ($" ++ ppWord16 (fromIntegral a) ++ ")") $ ppStackEffect' be
   | (a, be) <- IntMap.assocs (jmpInd e) ]
   where
     prefix s1 s2 = if null s2 then s1 else s1 ++ ": " ++ s2
+    ppStackEffect' end = ppStackEffect (StackEffect (mid e) end)
 
 brkEffect :: FinalStackEffect
 brkEffect = mempty { brk = Just noEffect }
