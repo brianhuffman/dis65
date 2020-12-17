@@ -54,28 +54,16 @@ instance Effect StackRange where
 --
 -- Invariants: The first range must include 0, and it must also
 -- include the second range.
-data StackEffect
-  = StackEffect !StackRange !StackRange
-  | LoopStackEffect !StackRange
+data StackEffect = StackEffect !StackRange !StackRange
   deriving (Eq, Show)
 
 instance Choice StackEffect where
   StackEffect mid1 end1 +++ StackEffect mid2 end2 =
     StackEffect (mid1 +++ mid2) (end1 +++ end2)
-  StackEffect mid1 end1 +++ LoopStackEffect mid2 =
-    StackEffect (mid1 +++ mid2) end1
-  LoopStackEffect mid1 +++ StackEffect mid2 end2 =
-    StackEffect (mid1 +++ mid2) end2
-  LoopStackEffect mid1 +++ LoopStackEffect mid2 =
-    LoopStackEffect (mid1 +++ mid2)
 
 instance Effect StackEffect where
   StackEffect mid1 end1 >>> StackEffect mid2 end2 =
     StackEffect (mid1 +++ (end1 >>> mid2)) (end1 >>> end2)
-  StackEffect mid1 end1 >>> LoopStackEffect mid2 =
-    LoopStackEffect (mid1 +++ (end1 >>> mid2))
-  LoopStackEffect mid1 >>> _ =
-    LoopStackEffect mid1
 
 instance NoEffect StackEffect where
   noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
@@ -100,7 +88,9 @@ ppStackEffect (StackEffect (StackRange a b) (StackRange c d))
   | c /= d = show (a,c,d,b)
   | b == max 0 c = show (0 - a) ++ "->" ++ show (c - a)
   | otherwise = show (0 - a) ++ "->" ++ show (b - a) ++ "->" ++ show (c - a)
-ppStackEffect (LoopStackEffect (StackRange a b))
+
+ppStackRange :: StackRange -> String
+ppStackRange (StackRange a b)
   | (a, b) == (0, 0) = ""
   | otherwise = show (a, b)
 
@@ -175,7 +165,6 @@ thenFinalStackEffect e1 e2 =
     f mid2 =
       case e1 of
         StackEffect mid1 end1 -> mid1 +++ (end1 >>> mid2)
-        LoopStackEffect mid1 -> mid1
 
 jsrFinalStackEffect :: FinalStackEffect -> FinalStackEffect -> FinalStackEffect
 jsrFinalStackEffect subroutine after =
@@ -189,7 +178,7 @@ ppFinalStackEffect :: FinalStackEffect -> String
 ppFinalStackEffect e =
   unwords $
   catMaybes $
-  [ fmap (prefix "LOOP" . ppStackEffect . LoopStackEffect) (loop e)
+  [ fmap (prefix "LOOP" . ppStackRange) (loop e)
   , fmap (prefix "RTS" . ppStackEffect) (rts e)
   , fmap (prefix "RTI" . ppStackEffect) (rti e)
   , fmap (prefix "BRK" . ppStackEffect) (brk e)
