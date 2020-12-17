@@ -196,10 +196,10 @@ computeEffectAt instructions state pc =
        JSR (fromIntegral -> target) ->
          let
            effect = noEffect { subroutines = IntSet.singleton target }
-           subEffect = thenFinalEffect effect $ lookupEffect state target
+           subEffect = lookupEffect state target
            afterEffect = lookupEffect state (pc + 3)
          in
-           jsrFinalEffect subEffect afterEffect
+           thenFinalEffect effect $ jsrFinalEffect subEffect afterEffect
        BRK ->
          brkFinalEffect
        RTI ->

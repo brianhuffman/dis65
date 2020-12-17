@@ -215,7 +215,7 @@ jsrFinalEffect subroutine after =
   { stack' = jsrFinalStackEffect (stack' subroutine) (stack' after)
   , memory' = memory' subroutine >>> memory' after
   , registers' = registers' subroutine >>> registers' after
-  , subroutines' = subroutines' subroutine <> subroutines' after -- Should we only include 'after'?
+  , subroutines' = {- subroutines' subroutine <> -} subroutines' after
   , branch' = branch' subroutine || branch' after
   }
 
