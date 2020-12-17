@@ -112,7 +112,7 @@ ppStackEffect (LoopStackEffect (StackRange a b))
 
 data FinalStackEffect =
   FinalStackEffect
-  { loop :: Maybe StackEffect
+  { loop :: Maybe StackRange
   , rts :: Maybe StackEffect
   , rti :: Maybe StackEffect
   , brk :: Maybe StackEffect
@@ -154,7 +154,7 @@ instance Monoid FinalStackEffect where
 instance Bottom FinalStackEffect where
   bottom =
     FinalStackEffect
-    { loop = Just bottom
+    { loop = Just (StackRange 0 0)
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
@@ -166,7 +166,7 @@ instance Bottom FinalStackEffect where
 thenFinalStackEffect :: StackEffect -> FinalStackEffect -> FinalStackEffect
 thenFinalStackEffect e1 e2 =
   FinalStackEffect
-  { loop = fmap (e1 >>>) (loop e2)
+  { loop = fmap f (loop e2)
   , rts = fmap (e1 >>>) (rts e2)
   , rti = fmap (e1 >>>) (rti e2)
   , brk = fmap (e1 >>>) (brk e2)
@@ -174,6 +174,11 @@ thenFinalStackEffect e1 e2 =
   , jmpAbs = fmap (e1 >>>) (jmpAbs e2)
   , jmpInd = fmap (e1 >>>) (jmpInd e2)
   }
+  where
+    f mid2 =
+      case e1 of
+        StackEffect mid1 end1 -> mid1 +++ (end1 >>> mid2)
+        LoopStackEffect mid1 -> mid1
 
 jsrFinalStackEffect :: FinalStackEffect -> FinalStackEffect -> FinalStackEffect
 jsrFinalStackEffect subroutine after =
@@ -187,7 +192,7 @@ ppFinalStackEffect :: FinalStackEffect -> String
 ppFinalStackEffect e =
   unwords $
   catMaybes $
-  [ fmap (prefix "LOOP" . ppStackEffect) (loop e)
+  [ fmap (prefix "LOOP" . ppStackEffect . LoopStackEffect) (loop e)
   , fmap (prefix "RTS" . ppStackEffect) (rts e)
   , fmap (prefix "RTI" . ppStackEffect) (rti e)
   , fmap (prefix "BRK" . ppStackEffect) (brk e)
