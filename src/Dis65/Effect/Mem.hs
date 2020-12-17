@@ -89,7 +89,7 @@ inter' x Univ = x
 inter' (Fin xs) (Fin ys) = Fin (inter xs ys)
 
 diff' :: ArgSet -> ArgSet' -> ArgSet
-diff' xs Univ = empty
+diff' _ Univ = empty
 diff' xs (Fin ys) = diff xs ys
 
 --------------------------------------------------------------------------------
