@@ -102,6 +102,24 @@ sizeAddrArg =
     AbsoluteY _ -> 2
     AbsoluteX _ -> 2
 
+sizeInstruction :: Instruction -> Int
+sizeInstruction =
+  \case
+    Reg _ -> 1
+    Stack _ -> 1
+    Read _ arg -> 1 + sizeAddrArg arg
+    Write _ arg -> 1 + sizeAddrArg arg
+    Modify _ arg -> 1 + sizeAddrArg arg
+    Accumulator _ -> 1
+    Branch _ _ -> 2
+    BRK -> 1
+    JSR _ -> 3
+    RTI -> 1
+    RTS -> 1
+    AbsJMP _ -> 3
+    IndJMP _ -> 3
+    Undoc _ -> 1
+
 --------------------------------------------------------------------------------
 -- * Pretty printing
 
@@ -149,14 +167,23 @@ ppInstruction =
 --------------------------------------------------------------------------------
 -- * Decoding
 
+--opcodeBRK :: Word8
+--opcodeBRK = 0x00
+--
+--opcodeRTI :: Word8
+--opcodeRTI = 0x40
+--
+--opcodeRTS :: Word8
+--opcodeRTS = 0x60
+
 decodeInstructions :: IntMap Word8 -> IntMap Instruction
 decodeInstructions memory =
   IntMap.mapMaybeWithKey (\pc _ -> decodeInstruction memory pc) memory
 
 decodeInstruction :: IntMap Word8 -> Int -> Maybe Instruction
 decodeInstruction memory pc =
-  do op <- decodeOp <$> IntMap.lookup pc memory
-     case op of
+  do opcode <- decodeOp <$> IntMap.lookup pc memory
+     case opcode of
        OpReg op ->
          Just (Reg op)
        OpStack op ->
@@ -226,7 +253,7 @@ opTable = listArray (0x00, 0xff)
   , OpBranch BPL, OpRd ORA InY, OpUndoc 0x12, OpUndoc 0x13
   , OpUndoc 0x0c, OpRd ORA ZpX, OpRW ASL ZpX, OpUndoc 0x17
   , OpReg CLC   , OpRd ORA AbY, OpUndoc 0x1a, OpUndoc 0x1b
-  , OpUndoc 0x10, OpRd ORA AbX, OpRW ASL AbX, OpUndoc 0x1f
+  , OpUndoc 0x1c, OpRd ORA AbX, OpRW ASL AbX, OpUndoc 0x1f
 
   , OpJSR       , OpRd AND InX, OpUndoc 0x22, OpUndoc 0x23
   , OpRd BIT Zpg, OpRd AND Zpg, OpRW ROL Zpg, OpUndoc 0x27
