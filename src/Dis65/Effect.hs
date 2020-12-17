@@ -27,7 +27,7 @@ data BasicEffect =
   }
   deriving (Eq, Show)
 
-instance Effect BasicEffect where
+instance Choice BasicEffect where
   e1 +++ e2 =
     BasicEffect
     { stack = stack e1 +++ stack e2
@@ -37,6 +37,7 @@ instance Effect BasicEffect where
     , branch = branch e1 || branch e2
     }
 
+instance Effect BasicEffect where
   e1 >>> e2 =
     BasicEffect
     { stack = stack e1 >>> stack e2

@@ -1,16 +1,18 @@
 module Dis65.Effect.Class where
 
+-- | Types with a non-deterministic choice operator.
+class Choice a where
+  -- | Non-deterministic choice or parallel composition operator.
+  -- Should be associative, commutative, and idempotent.
+  (+++) :: a -> a -> a
+  infixl 5 +++
+
 -- | The class of types that can be partially ordered with a bottom element.
 class Bottom a where
   -- | The least element of a type, for use in computing least fixed-points.
   bottom :: a
 
-class Effect a where
-
-  -- | Parallel composition. It should be associative, commutative,
-  -- and idempotent. This can be considered as the least-upper-bound
-  -- operator for an information ordering on type @a@.
-  (+++) :: a -> a -> a
+class Choice a => Effect a where
 
   -- | Sequential composition. It should be associative and distribute
   -- over parallel composition. This implies that it is monotone on

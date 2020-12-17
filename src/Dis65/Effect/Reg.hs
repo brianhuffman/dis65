@@ -75,11 +75,11 @@ regP = regC <> regZ <> regI <> regD <> regV <> regN
 data RegEffect = RegEffect !Regs !Regs !Regs -- reads, writes, clears
   deriving (Eq, Show)
 
-instance Effect RegEffect where
-
+instance Choice RegEffect where
   RegEffect r1 w1 c1 +++ RegEffect r2 w2 c2 =
     RegEffect (r1 <> r2) (w1 <> w2) (inter c1 c2)
 
+instance Effect RegEffect where
   RegEffect r1 w1 c1 >>> RegEffect r2 w2 c2 =
     RegEffect (r1 <> diff r2 c1) (w1 <> w2) (c1 <> c2)
 

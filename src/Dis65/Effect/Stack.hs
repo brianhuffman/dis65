@@ -30,9 +30,11 @@ import Dis65.Effect.Class
 data StackRange = StackRange !Int !Int
   deriving (Eq, Show)
 
-instance Effect StackRange where
+instance Choice StackRange where
   StackRange lo1 hi1 +++ StackRange lo2 hi2 =
     StackRange (min lo1 lo2) (max hi1 hi2)
+
+instance Effect StackRange where
   StackRange lo1 hi1 >>> StackRange lo2 hi2 = StackRange lo3 hi3
     where
       lo3
@@ -57,8 +59,7 @@ data StackEffect
   | LoopStackEffect !StackRange
   deriving (Eq, Show)
 
-instance Effect StackEffect where
-
+instance Choice StackEffect where
   StackEffect mid1 end1 +++ StackEffect mid2 end2 =
     StackEffect (mid1 +++ mid2) (end1 +++ end2)
   StackEffect mid1 end1 +++ LoopStackEffect mid2 =
@@ -68,6 +69,7 @@ instance Effect StackEffect where
   LoopStackEffect mid1 +++ LoopStackEffect mid2 =
     LoopStackEffect (mid1 +++ mid2)
 
+instance Effect StackEffect where
   StackEffect mid1 end1 >>> StackEffect mid2 end2 =
     StackEffect (mid1 +++ (end1 >>> mid2)) (end1 >>> end2)
   StackEffect mid1 end1 >>> LoopStackEffect mid2 =

@@ -104,8 +104,7 @@ data MemEffect
   }
   deriving (Eq, Show)
 
-instance Effect MemEffect where
-
+instance Choice MemEffect where
   e1 +++ e2 =
     MemEffect
     { loads = union (loads e1) (loads e2)
@@ -113,6 +112,7 @@ instance Effect MemEffect where
     , overwrites = inter' (overwrites e1) (overwrites e2)
     }
 
+instance Effect MemEffect where
   e1 >>> e2 =
     MemEffect
     { loads = union (loads e1) (diff' (loads e2) (overwrites e1))
