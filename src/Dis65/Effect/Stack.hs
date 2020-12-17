@@ -46,6 +46,9 @@ instance Effect StackRange where
         | hi2 == 255 = hi2
         | otherwise = max (-255) (min 255 (hi1 + hi2))
 
+instance NoEffect StackRange where
+  noEffect = StackRange 0 0
+
 -- | A 'StackEffect' contains two 'StackRanges': The first is the
 -- range of possible stack heights (relative to 0 at the start) that
 -- the computation can take on at any time during its execution. The
@@ -66,7 +69,7 @@ instance Effect StackEffect where
     StackEffect (mid1 +++ (end1 >>> mid2)) (end1 >>> end2)
 
 instance NoEffect StackEffect where
-  noEffect = StackEffect (StackRange 0 0) (StackRange 0 0)
+  noEffect = StackEffect noEffect noEffect
 
 push :: StackEffect
 push = StackEffect (StackRange 0 1) (StackRange 1 1)
@@ -141,7 +144,7 @@ instance Monoid FinalStackEffect where
 instance Bottom FinalStackEffect where
   bottom =
     FinalStackEffect
-    { loop = Just (StackRange 0 0)
+    { loop = Just noEffect
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
