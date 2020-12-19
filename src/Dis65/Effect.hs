@@ -141,6 +141,14 @@ jmpIndFinalEffect addr = mempty { stack' = Stack.jmpIndEffect addr }
 undocFinalEffect :: Word8 -> FinalEffect
 undocFinalEffect op = mempty { stack' = Stack.undocEffect op }
 
+--------------------------------------------------------------------------------
+-- * Normal subroutines
+
+normalSubroutine :: FinalEffect -> Bool
+normalSubroutine e =
+  and
+  [ Stack.normalStackEffect (stack' e)
+  ]
 
 --------------------------------------------------------------------------------
 -- * Pretty printing

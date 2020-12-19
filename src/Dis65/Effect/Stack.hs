@@ -13,6 +13,7 @@ module Dis65.Effect.Stack
   , jmpAbsEffect
   , jmpIndEffect
   , undocEffect
+  , normalStackEffect
   ) where
 
 import           Data.IntMap (IntMap)
@@ -217,3 +218,18 @@ jmpIndEffect addr = mempty { jmpInd = IntMap.singleton (fromIntegral addr) noEff
 
 undocEffect :: Word8 -> FinalStackEffect
 undocEffect op = mempty { undoc = Map.singleton op noEffect }
+
+--------------------------------------------------------------------------------
+-- * Normal subroutines
+
+normalStackEffect :: FinalStackEffect -> Bool
+normalStackEffect e =
+  and
+  [ case mid e of StackRange lo _ -> lo == 0
+  , maybe False (== noEffect) (rts e)
+  , rti e == Nothing
+  , brk e == Nothing
+  , Map.null (undoc e)
+  , IntMap.null (jmpAbs e)
+  , IntMap.null (jmpInd e)
+  ]
