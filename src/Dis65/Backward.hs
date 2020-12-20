@@ -145,6 +145,9 @@ computeSuccessors pc =
     IndJMP _ -> []
     Undoc _ -> []
 
+allSuccessors :: IntMap Instruction -> IntMap [Addr]
+allSuccessors = IntMap.mapWithKey computeSuccessors
+
 computePredecessors :: IntMap [Addr] -> IntMap [Addr]
 computePredecessors successors =
   IntMap.fromListWith (++) $
@@ -288,7 +291,7 @@ computeFinalEffects ::
   IO (IntMap (Instruction, FinalEffect))
 computeFinalEffects debug mem =
   do let instructions = decodeInstructions mem
-     let successors = IntMap.mapWithKey computeSuccessors instructions
+     let successors = allSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
      let state0 = IntMap.map (const bottom) instructions
      let worklist0 = IntMap.keysSet instructions
