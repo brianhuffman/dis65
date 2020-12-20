@@ -3,7 +3,6 @@
 
 module Dis65.Backward where
 
-import           Control.Monad (unless, when)
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.IntSet (IntSet)
@@ -285,11 +284,10 @@ are most often immediately below the successor address.
 -}
 
 computeFinalEffects ::
-  Bool ->
   -- | Memory
   IntMap Word8 ->
   IO (IntMap (Instruction, FinalEffect))
-computeFinalEffects debug mem =
+computeFinalEffects mem =
   do let instructions = decodeInstructions mem
      let successors = allSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
@@ -303,17 +301,8 @@ computeFinalEffects debug mem =
            Just (addr, worklist') ->
              do let old = fromMaybe (error "invariant violation") (IntMap.lookup addr state) -- lookup should always succeed
                 let new = computeEffectAt instructions state addr
-                let succs = fromMaybe mempty (IntMap.lookup addr successors)
-                when debug $
-                  do putStrLn $ "**********" ++ ppWord16 (fromIntegral addr) ++ "**********"
-                     putStrLn $ unwords $ "opcode:" : maybe "<none>" ppWord8 (IntMap.lookup addr mem) : "succs:" : map (ppWord16 . fromIntegral) succs
-                     case IntMap.lookup addr instructions of
-                       Just instr -> putStrLn $ ppInstruction instr
-                       Nothing -> pure ()
-                     putStr $ unlines $ ppFinalEffect new
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
-                     when debug $ unless (IntSet.null dirty) $ putStrLn $ unwords $ "dirty:" : map (ppWord16 . fromIntegral) (IntSet.elems dirty)
                      go (IntSet.union dirty worklist') (IntMap.insert addr new state)
 
      final <- go worklist0 state0
