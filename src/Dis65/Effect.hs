@@ -12,7 +12,7 @@ import qualified Dis65.Effect.Stack as Stack
 import qualified Dis65.Effect.Mem as Mem
 import qualified Dis65.Effect.Reg as Reg
 
-import Dis65.Instruction
+import Dis65.Addr
 
 --------------------------------------------------------------------------------
 -- * BasicEffect

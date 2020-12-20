@@ -8,6 +8,8 @@ import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.Word
 
+import Dis65.Addr
+
 -- | Representation of a decoded opcode. This identifies the
 -- instruction, but does not include the instruction's argument.
 data Op
@@ -122,16 +124,6 @@ sizeInstruction =
 
 --------------------------------------------------------------------------------
 -- * Pretty printing
-
-ppWord8 :: Word8 -> String
-ppWord8 b = [ds !! hi, ds !! lo]
-  where (hi, lo) = divMod (fromIntegral b) 16
-        ds = "0123456789abcdef"
-
-ppWord16 :: Word16 -> String
-ppWord16 w = ppWord8 hi ++ ppWord8 lo
-  where hi = fromIntegral (w `div` 0x100)
-        lo = fromIntegral w
 
 ppAddrArg :: AddrArg -> String
 ppAddrArg =

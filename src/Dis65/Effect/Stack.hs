@@ -23,7 +23,7 @@ import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Word
 
-import Dis65.Instruction (ppWord8, ppWord16)
+import Dis65.Addr (ppWord8, ppWord16)
 import Dis65.Effect.Class
 
 -- | Represents a contiguous subrange of integers between -255 and

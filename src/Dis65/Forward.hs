@@ -10,6 +10,7 @@ import           Data.Maybe
 import           Data.Word
 
 import Dis65.Instruction
+import Dis65.Addr
 
 --------------------------------------------------------------------------------
 -- * AddrState
@@ -59,8 +60,6 @@ addrWriteInd = AddrState (bit 7)
 type Memory = IntMap Word8
 
 type MemState = IntMap AddrState
-
-type Addr = Int
 
 mark :: Addr -> AddrState -> MemState -> MemState
 mark = IntMap.insertWith mappend

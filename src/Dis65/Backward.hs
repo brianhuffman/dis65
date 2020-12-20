@@ -16,6 +16,7 @@ import qualified Dis65.Effect.Stack as Stack
 import qualified Dis65.Effect.Mem as Mem
 import qualified Dis65.Effect.Reg as Reg
 
+import Dis65.Addr
 import Dis65.Effect
 import Dis65.Instruction
 
@@ -126,8 +127,6 @@ doAddrArg rw arg =
 --------------------------------------------------------------------------------
 -- * Computing FinalEffect for one instruction
 
-type Addr = Int
-
 computeSuccessors :: Addr -> Instruction -> [Addr]
 computeSuccessors pc =
   \case
@@ -232,13 +231,7 @@ getAddr mem pc =
     two =
       do lo <- IntMap.lookup (pc + 1) mem
          hi <- IntMap.lookup (pc + 2) mem
-         pure (addr16 lo hi)
-
-addr8 :: Word8 -> Addr
-addr8 = fromIntegral
-
-addr16 :: Word8 -> Word8 -> Addr
-addr16 lo hi = fromIntegral lo + fromIntegral hi * 256
+         pure (addr16 (word lo hi))
 
 --------------------------------------------------------------------------------
 -- * Computing FinalEffect for all instructions
