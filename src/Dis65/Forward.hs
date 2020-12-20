@@ -17,7 +17,7 @@ import Dis65.Addr
 
 -- | A set of bit flags that indicate how a particular address is
 -- used.
-newtype AddrState = AddrState Word8
+newtype AddrState = AddrState Word16
   deriving (Eq)
 
 instance Semigroup AddrState where
@@ -30,29 +30,41 @@ instance Monoid AddrState where
 has :: AddrState -> AddrState -> Bool
 has x y = mappend x y == y
 
-addrJump :: AddrState
-addrJump = AddrState (bit 0)
+addrLabel :: AddrState
+addrLabel = AddrState (bit 0)
 
 addrExec :: AddrState
 addrExec = AddrState (bit 1)
 
+addrJsr :: AddrState
+addrJsr = AddrState (bit 2)
+
+addrJump :: AddrState
+addrJump = AddrState (bit 3)
+
+addrBranch :: AddrState
+addrBranch = AddrState (bit 4)
+
+addrVector :: AddrState
+addrVector = AddrState (bit 5)
+
 addrRead :: AddrState
-addrRead = AddrState (bit 2)
+addrRead = AddrState (bit 6)
 
 addrWrite :: AddrState
-addrWrite = AddrState (bit 3)
+addrWrite = AddrState (bit 7)
 
 addrReadIx :: AddrState
-addrReadIx = AddrState (bit 4)
+addrReadIx = AddrState (bit 8)
 
 addrWriteIx :: AddrState
-addrWriteIx = AddrState (bit 5)
+addrWriteIx = AddrState (bit 9)
 
 addrReadInd :: AddrState
-addrReadInd = AddrState (bit 6)
+addrReadInd = AddrState (bit 10)
 
 addrWriteInd :: AddrState
-addrWriteInd = AddrState (bit 7)
+addrWriteInd = AddrState (bit 11)
 
 --------------------------------------------------------------------------------
 -- * Forward analysis
@@ -195,19 +207,19 @@ loop mem s (pc : pcs)
             Accumulator _ ->
               loop mem s' (pc + 1 : pcs)
             Branch _ (fromIntegral -> target) ->
-              loop mem (mark target addrJump s') (pc + 2 : target : pcs)
+              loop mem (mark target (addrLabel <> addrBranch) s') (pc + 2 : target : pcs)
             BRK ->
               loop mem s' pcs
             JSR (fromIntegral -> target) ->
-              loop mem (mark target addrJump s') (pc + 3 : target : pcs)
+              loop mem (mark target (addrLabel <> addrJsr) s') (pc + 3 : target : pcs)
             RTI ->
               loop mem s' pcs
             RTS ->
               loop mem s' pcs
             AbsJMP (fromIntegral -> target) ->
-              loop mem (mark target addrJump s') (target : pcs)
-            IndJMP _ ->
-              loop mem s' pcs
+              loop mem (mark target (addrLabel <> addrJump) s') (target : pcs)
+            IndJMP (fromIntegral -> target) ->
+              loop mem (mark target addrVector s') pcs
             Undoc _ ->
               loop mem s' pcs
 
@@ -221,8 +233,11 @@ ppAddrState :: AddrState -> String
 ppAddrState a =
   unwords $
   mapMaybe f
-  [ (addrJump, "Label")
-  , (addrExec, "PC")
+  [ (addrExec, "PC")
+  , (addrJsr, "JSR")
+  , (addrJump, "JMP")
+  , (addrBranch, "B")
+  , (addrVector, "JMP()")
   , (addrRead, "R")
   , (addrWrite, "W")
   , (addrReadIx, "R+")
