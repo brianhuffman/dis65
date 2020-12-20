@@ -284,10 +284,13 @@ are most often immediately below the successor address.
 -}
 
 computeFinalEffects ::
+  -- | Program
   IntMap Instruction ->
+  -- | Overrides
+  IntMap ([Addr], [FinalEffect] -> FinalEffect) ->
   IO (IntMap (Instruction, FinalEffect))
-computeFinalEffects instructions =
-  do let successors = allSuccessors instructions
+computeFinalEffects instructions overrides =
+  do let successors = fmap fst overrides <> allSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
      let state0 = IntMap.map (const bottom) instructions
      let worklist0 = IntMap.keysSet instructions
@@ -297,8 +300,12 @@ computeFinalEffects instructions =
          case IntSet.maxView worklist of
            Nothing -> pure state
            Just (addr, worklist') ->
-             do let old = fromMaybe (error "invariant violation") (IntMap.lookup addr state) -- lookup should always succeed
-                let new = computeEffectAt instructions state addr
+             do let
+                  old = fromMaybe (error "invariant violation") (IntMap.lookup addr state) -- lookup should always succeed
+                  new =
+                    case IntMap.lookup addr overrides of
+                      Nothing -> computeEffectAt instructions state addr
+                      Just (addrs, f) -> f (map (lookupEffect state) addrs)
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
                      go (IntSet.union dirty worklist') (IntMap.insert addr new state)
