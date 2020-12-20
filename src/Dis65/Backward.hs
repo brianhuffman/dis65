@@ -284,12 +284,10 @@ are most often immediately below the successor address.
 -}
 
 computeFinalEffects ::
-  -- | Memory
-  IntMap Word8 ->
+  IntMap Instruction ->
   IO (IntMap (Instruction, FinalEffect))
-computeFinalEffects mem =
-  do let instructions = decodeInstructions mem
-     let successors = allSuccessors instructions
+computeFinalEffects instructions =
+  do let successors = allSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
      let state0 = IntMap.map (const bottom) instructions
      let worklist0 = IntMap.keysSet instructions
