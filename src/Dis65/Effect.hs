@@ -123,23 +123,33 @@ jsrFinalEffect subroutine after =
   , branch' = branch' subroutine || branch' after
   }
 
+mkFinalEffect :: Stack.FinalStackEffect -> FinalEffect
+mkFinalEffect s =
+  FinalEffect
+    { stack' = s
+    , memory' = noEffect
+    , registers' = noEffect
+    , subroutines' = mempty
+    , branch' = False
+    }
+
 brkFinalEffect :: FinalEffect
-brkFinalEffect = mempty { stack' = Stack.brkEffect }
+brkFinalEffect = mkFinalEffect Stack.brkEffect
 
 rtiFinalEffect :: FinalEffect
-rtiFinalEffect = mempty { stack' = Stack.rtiEffect }
+rtiFinalEffect = mkFinalEffect Stack.rtiEffect
 
 rtsFinalEffect :: FinalEffect
-rtsFinalEffect = mempty { stack' = Stack.rtsEffect }
+rtsFinalEffect = mkFinalEffect Stack.rtsEffect
 
 jmpAbsFinalEffect :: Int -> FinalEffect
-jmpAbsFinalEffect addr = mempty { stack' = Stack.jmpAbsEffect addr }
+jmpAbsFinalEffect addr = mkFinalEffect (Stack.jmpAbsEffect addr)
 
 jmpIndFinalEffect :: Word16 -> FinalEffect
-jmpIndFinalEffect addr = mempty { stack' = Stack.jmpIndEffect addr }
+jmpIndFinalEffect addr = mkFinalEffect (Stack.jmpIndEffect addr)
 
 undocFinalEffect :: Word8 -> FinalEffect
-undocFinalEffect op = mempty { stack' = Stack.undocEffect op }
+undocFinalEffect op = mkFinalEffect (Stack.undocEffect op)
 
 --------------------------------------------------------------------------------
 -- * Normal subroutines
