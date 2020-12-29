@@ -175,6 +175,9 @@ opType x =
       | otherwise          = addrRead
 -}
 
+lookupUsage :: MemUsage -> Addr -> AddrUsage
+lookupUsage usage addr = fromMaybe mempty (IntMap.lookup addr usage)
+
 alreadyExecuted :: MemUsage -> Addr -> Bool
 alreadyExecuted s pc =
   case IntMap.lookup pc s of
