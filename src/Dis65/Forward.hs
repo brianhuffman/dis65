@@ -13,70 +13,70 @@ import Dis65.Instruction
 import Dis65.Addr
 
 --------------------------------------------------------------------------------
--- * AddrState
+-- * AddrUsage
 
 -- | A set of bit flags that indicate how a particular address is
 -- used.
-newtype AddrState = AddrState Word16
+newtype AddrUsage = AddrUsage Word16
   deriving (Eq)
 
-instance Semigroup AddrState where
-  AddrState x <> AddrState y = AddrState (x .|. y)
+instance Semigroup AddrUsage where
+  AddrUsage x <> AddrUsage y = AddrUsage (x .|. y)
 
-instance Monoid AddrState where
-  mempty = AddrState 0
+instance Monoid AddrUsage where
+  mempty = AddrUsage 0
   mappend = (<>)
 
-has :: AddrState -> AddrState -> Bool
+has :: AddrUsage -> AddrUsage -> Bool
 has x y = mappend x y == y
 
-addrLabel :: AddrState
-addrLabel = AddrState (bit 0)
+addrLabel :: AddrUsage
+addrLabel = AddrUsage (bit 0)
 
-addrExec :: AddrState
-addrExec = AddrState (bit 1)
+addrExec :: AddrUsage
+addrExec = AddrUsage (bit 1)
 
-addrJsr :: AddrState
-addrJsr = AddrState (bit 2)
+addrJsr :: AddrUsage
+addrJsr = AddrUsage (bit 2)
 
-addrJump :: AddrState
-addrJump = AddrState (bit 3)
+addrJump :: AddrUsage
+addrJump = AddrUsage (bit 3)
 
-addrBranch :: AddrState
-addrBranch = AddrState (bit 4)
+addrBranch :: AddrUsage
+addrBranch = AddrUsage (bit 4)
 
-addrVector :: AddrState
-addrVector = AddrState (bit 5)
+addrVector :: AddrUsage
+addrVector = AddrUsage (bit 5)
 
-addrRead :: AddrState
-addrRead = AddrState (bit 6)
+addrRead :: AddrUsage
+addrRead = AddrUsage (bit 6)
 
-addrWrite :: AddrState
-addrWrite = AddrState (bit 7)
+addrWrite :: AddrUsage
+addrWrite = AddrUsage (bit 7)
 
-addrReadIx :: AddrState
-addrReadIx = AddrState (bit 8)
+addrReadIx :: AddrUsage
+addrReadIx = AddrUsage (bit 8)
 
-addrWriteIx :: AddrState
-addrWriteIx = AddrState (bit 9)
+addrWriteIx :: AddrUsage
+addrWriteIx = AddrUsage (bit 9)
 
-addrReadInd :: AddrState
-addrReadInd = AddrState (bit 10)
+addrReadInd :: AddrUsage
+addrReadInd = AddrUsage (bit 10)
 
-addrWriteInd :: AddrState
-addrWriteInd = AddrState (bit 11)
+addrWriteInd :: AddrUsage
+addrWriteInd = AddrUsage (bit 11)
 
 --------------------------------------------------------------------------------
 -- * Forward analysis
 
 type Memory = IntMap Word8
 
-type MemState = IntMap AddrState
+type MemUsage = IntMap AddrUsage
 
-mark :: Addr -> AddrState -> MemState -> MemState
+mark :: Addr -> AddrUsage -> MemUsage -> MemUsage
 mark = IntMap.insertWith mappend
 
-markRead :: AddrArg -> MemState -> MemState
+markRead :: AddrArg -> MemUsage -> MemUsage
 markRead =
   \case
     IndirectX z -> mark (fromIntegral z) addrReadInd
@@ -89,7 +89,7 @@ markRead =
     AbsoluteY w -> mark (fromIntegral w) addrReadIx
     AbsoluteX w -> mark (fromIntegral w) addrReadIx
 
-markWrite :: AddrArg -> MemState -> MemState
+markWrite :: AddrArg -> MemUsage -> MemUsage
 markWrite =
   \case
     IndirectX z -> mark (fromIntegral z) addrWriteInd
@@ -108,7 +108,7 @@ Memory map:
 As we process the file, we update another map of addresses.
 
 
-AddrState has various values, based on how that address has been used
+AddrUsage has various values, based on how that address has been used
 in the program:
 - execute
 - read
@@ -124,7 +124,7 @@ data OpType
   | OpEnd -- ^ RTS, RTI, BRK
   | Op1 -- ^ 1-byte instructions
   | Op2 -- ^ 2-byte instructions
-  | OpAbs AddrState
+  | OpAbs AddrUsage
   | OpUndoc
 
 {-
@@ -175,7 +175,7 @@ opType x =
       | otherwise          = addrRead
 -}
 
-alreadyExecuted :: MemState -> Addr -> Bool
+alreadyExecuted :: MemUsage -> Addr -> Bool
 alreadyExecuted s pc =
   case IntMap.lookup pc s of
     Just a -> has addrExec a
@@ -183,9 +183,9 @@ alreadyExecuted s pc =
 
 loop ::
   IntMap Instruction ->
-  MemState ->
+  MemUsage ->
   [Addr] ->
-  MemState
+  MemUsage
 loop _mem s [] = s
 loop mem s (pc : pcs)
   | alreadyExecuted s pc = loop mem s pcs
@@ -229,8 +229,8 @@ loop mem s (pc : pcs)
 --------------------------------------------------------------------------------
 -- * Pretty printing
 
-ppAddrState :: AddrState -> String
-ppAddrState a =
+ppAddrUsage :: AddrUsage -> String
+ppAddrUsage a =
   unwords $
   mapMaybe f
   [ (addrExec, "PC")
