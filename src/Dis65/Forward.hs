@@ -30,23 +30,26 @@ instance Monoid AddrUsage where
 has :: AddrUsage -> AddrUsage -> Bool
 has x y = mappend x y == y
 
-addrLabel :: AddrUsage
-addrLabel = AddrUsage (bit 0)
-
 addrExec :: AddrUsage
-addrExec = AddrUsage (bit 1)
+addrExec = AddrUsage (bit 0)
 
 addrJsr :: AddrUsage
-addrJsr = AddrUsage (bit 2)
+addrJsr = AddrUsage (bit 1)
 
 addrJump :: AddrUsage
-addrJump = AddrUsage (bit 3)
+addrJump = AddrUsage (bit 2)
 
-addrBranch :: AddrUsage
-addrBranch = AddrUsage (bit 4)
+addrJumpInd :: AddrUsage
+addrJumpInd = AddrUsage (bit 3)
 
-addrVector :: AddrUsage
-addrVector = AddrUsage (bit 5)
+addrBranchBoth :: AddrUsage
+addrBranchBoth = addrBranchBackward <> addrBranchForward
+
+addrBranchBackward :: AddrUsage
+addrBranchBackward = AddrUsage (bit 4)
+
+addrBranchForward :: AddrUsage
+addrBranchForward = AddrUsage (bit 5)
 
 addrRead :: AddrUsage
 addrRead = AddrUsage (bit 6)
@@ -65,6 +68,9 @@ addrReadInd = AddrUsage (bit 10)
 
 addrWriteInd :: AddrUsage
 addrWriteInd = AddrUsage (bit 11)
+
+addrWord :: AddrUsage
+addrWord = AddrUsage (bit 12)
 
 --------------------------------------------------------------------------------
 -- * Forward analysis
@@ -210,19 +216,20 @@ loop mem s (pc : pcs)
             Accumulator _ ->
               loop mem s' (pc + 1 : pcs)
             Branch _ (fromIntegral -> target) ->
-              loop mem (mark target (addrLabel <> addrBranch) s') (pc + 2 : target : pcs)
+              loop mem (mark target tag s') (pc + 2 : target : pcs)
+              where tag = if target <= pc then addrBranchBackward else addrBranchForward
             BRK ->
               loop mem s' pcs
             JSR (fromIntegral -> target) ->
-              loop mem (mark target (addrLabel <> addrJsr) s') (pc + 3 : target : pcs)
+              loop mem (mark target addrJsr s') (pc + 3 : target : pcs)
             RTI ->
               loop mem s' pcs
             RTS ->
               loop mem s' pcs
             AbsJMP (fromIntegral -> target) ->
-              loop mem (mark target (addrLabel <> addrJump) s') (target : pcs)
+              loop mem (mark target addrJump s') (target : pcs)
             IndJMP (fromIntegral -> target) ->
-              loop mem (mark target addrVector s') pcs
+              loop mem (mark target addrWord s') pcs
             Undoc _ ->
               loop mem s' pcs
 
@@ -239,8 +246,9 @@ ppAddrUsage a =
   [ (addrExec, "PC")
   , (addrJsr, "JSR")
   , (addrJump, "JMP")
-  , (addrBranch, "B")
-  , (addrVector, "JMP()")
+  , (addrJumpInd, "JMP()")
+  , (addrBranchBackward, "B-")
+  , (addrBranchForward, "B+")
   , (addrRead, "R")
   , (addrWrite, "W")
   , (addrReadIx, "R+")
