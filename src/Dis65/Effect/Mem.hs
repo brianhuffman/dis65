@@ -3,6 +3,8 @@ module Dis65.Effect.Mem
   , readAddr
   , writeAddr
   , modifyAddr
+  , canRead
+  , canWrite
   , ppMemEffect
   ) where
 
@@ -139,6 +141,15 @@ modifyAddr :: AddrArg -> MemEffect
 modifyAddr a = MemEffect (single a) (single a) (Fin (single a))
 
 --------------------------------------------------------------------------------
+-- Effect queries
+
+canRead :: AddrArg -> MemEffect -> Bool
+canRead a (MemEffect (ArgSet r) _ _) = Set.member a r
+
+canWrite :: AddrArg -> MemEffect -> Bool
+canWrite a (MemEffect _ (ArgSet w) _) = Set.member a w
+
+--------------------------------------------------------------------------------
 -- Pretty printing
 
 ppMemEffect :: MemEffect -> String
@@ -146,3 +157,9 @@ ppMemEffect (MemEffect r w _) =
   unwords $
   "READS" : map ppAddrArg (elems r) ++
   "WRITES" : map ppAddrArg (elems w)
+  -- "CLEARS" : [ppArgSet' o]
+{-
+ppArgSet' :: ArgSet' -> String
+ppArgSet' Univ = "all"
+ppArgSet' (Fin s) = unwords (map ppAddrArg (elems s))
+-}
