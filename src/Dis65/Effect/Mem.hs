@@ -154,8 +154,12 @@ canWrite a (MemEffect _ (ArgSet w) _) = Set.member a w
 -- Pretty printing
 
 -- | Parameterized by a printer for labels.
-ppMemEffect :: (Word16 -> String) -> MemEffect -> String
+ppMemEffect :: (Word16 -> String) -> MemEffect -> [String]
 ppMemEffect label (MemEffect r w _) =
-  unwords $
-  "READS" : map (ppAddrArg label) (elems r) ++
-  "WRITES" : map (ppAddrArg label) (elems w)
+  heading "READS" (diff r w) ++
+  heading "WRITES" (diff w r) ++
+  heading "MODIFIES" (inter r w)
+  where
+    heading str set
+      | null (elems set) = []
+      | otherwise = [unwords (str : map (ppAddrArg label) (elems set))]

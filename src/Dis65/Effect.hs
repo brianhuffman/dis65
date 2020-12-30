@@ -183,8 +183,9 @@ ppBasicEffect label e =
   filter (not . null) $
   [ Reg.ppRegEffect (registers e)
   , Stack.ppStackEffect (stack e)
-  , Mem.ppMemEffect label (memory e)
-  , ppSubroutines (subroutines e)
+  ] ++
+  Mem.ppMemEffect label (memory e) ++
+  [ ppSubroutines (subroutines e)
   , if branch e then "Branches" else ""
   ]
 
@@ -194,8 +195,9 @@ ppFinalEffect label e =
   filter (not . null) $
   [ Reg.ppRegEffect (registers' e)
   , Stack.ppFinalStackEffect (stack' e)
-  , Mem.ppMemEffect label (memory' e)
-  , ppSubroutines (subroutines' e)
+  ] ++
+  Mem.ppMemEffect label (memory' e) ++
+  [ ppSubroutines (subroutines' e)
   , if branch' e then "Branches" else ""
   , if loop' e then "Loops" else ""
   ]
