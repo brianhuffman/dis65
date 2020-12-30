@@ -125,35 +125,36 @@ sizeInstruction =
 --------------------------------------------------------------------------------
 -- * Pretty printing
 
-ppAddrArg :: AddrArg -> String
-ppAddrArg =
+ppAddrArg :: (Word16 -> String) -> AddrArg -> String
+ppAddrArg label =
   \case
     IndirectX z -> "($" ++ ppWord8 z ++ ",X)"
     ZeroPage z -> "$" ++ ppWord8 z
     Immediate z -> "#$" ++ ppWord8 z
-    Absolute w -> "$" ++ ppWord16 w
+    Absolute w -> label w
     IndirectY z -> "($" ++ ppWord8 z ++"),Y"
     ZeroPageX z -> "$" ++ ppWord8 z ++ ",X"
     ZeroPageY z -> "$" ++ ppWord8 z ++ ",Y"
-    AbsoluteY w -> "$" ++ ppWord16 w ++ ",Y"
-    AbsoluteX w -> "$" ++ ppWord16 w ++ ",X"
+    AbsoluteY w -> label w ++ ",Y"
+    AbsoluteX w -> label w ++ ",X"
 
-ppInstruction :: Instruction -> String
-ppInstruction =
+-- | Parameterized by a printer for labels.
+ppInstruction :: (Word16 -> String) -> Instruction -> String
+ppInstruction label =
   \case
     Reg op -> show op
     Stack op -> show op
-    Read op arg -> unwords [show op, ppAddrArg arg]
-    Write op arg -> unwords [show op, ppAddrArg arg]
-    Modify op arg -> unwords [show op, ppAddrArg arg]
+    Read op arg -> unwords [show op, ppAddrArg label arg]
+    Write op arg -> unwords [show op, ppAddrArg label arg]
+    Modify op arg -> unwords [show op, ppAddrArg label arg]
     Accumulator op -> show op
-    Branch op w -> unwords [show op, "$" ++ ppWord16 w]
+    Branch op w -> unwords [show op, label w]
     BRK -> "BRK"
-    JSR w -> "JSR $" ++ ppWord16 w
+    JSR w -> "JSR " ++ label w
     RTI -> "RTI"
     RTS -> "RTS"
-    AbsJMP w -> "JMP $" ++ ppWord16 w
-    IndJMP w -> "JMP ($" ++ ppWord16 w ++ ")"
+    AbsJMP w -> "JMP " ++ label w
+    IndJMP w -> "JMP (" ++ label w ++ ")"
     Undoc b -> ".byt $" ++ ppWord8 b
 
 --------------------------------------------------------------------------------

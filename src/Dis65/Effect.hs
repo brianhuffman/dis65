@@ -176,23 +176,25 @@ ppSubroutines s
   | otherwise =
     unwords ("JSR" : [ "$" ++ ppWord16 (fromIntegral a) | a <- IntSet.elems s ])
 
-ppBasicEffect :: BasicEffect -> String
-ppBasicEffect e =
+-- | Parameterized by a printer for labels.
+ppBasicEffect :: (Word16 -> String) -> BasicEffect -> String
+ppBasicEffect label e =
   unwords $
   filter (not . null) $
   [ Reg.ppRegEffect (registers e)
   , Stack.ppStackEffect (stack e)
-  , Mem.ppMemEffect (memory e)
+  , Mem.ppMemEffect label (memory e)
   , ppSubroutines (subroutines e)
   , if branch e then "Branches" else ""
   ]
 
-ppFinalEffect :: FinalEffect -> [String]
-ppFinalEffect e =
+-- | Parameterized by a printer for labels.
+ppFinalEffect :: (Word16 -> String) -> FinalEffect -> [String]
+ppFinalEffect label e =
   filter (not . null) $
   [ Reg.ppRegEffect (registers' e)
   , Stack.ppFinalStackEffect (stack' e)
-  , Mem.ppMemEffect (memory' e)
+  , Mem.ppMemEffect label (memory' e)
   , ppSubroutines (subroutines' e)
   , if branch' e then "Branches" else ""
   , if loop' e then "Loops" else ""

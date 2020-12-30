@@ -313,11 +313,12 @@ computeFinalEffects instructions overrides =
      final <- go worklist0 state0
      pure (IntMap.intersectionWith (,) instructions final)
 
-ppFinalEffects :: IntMap (Instruction, FinalEffect) -> IO ()
-ppFinalEffects = mapM_ pp1 . IntMap.assocs
+-- | Parameterized by a printer for labels.
+ppFinalEffects :: (Word16 -> String) -> IntMap (Instruction, FinalEffect) -> IO ()
+ppFinalEffects label = mapM_ pp1 . IntMap.assocs
   where
     pp1 (addr, (instr, e)) =
       putStrLn $
       ppWord16 (fromIntegral addr) ++ ": " ++
-      take 16 (ppInstruction instr ++ repeat ' ') ++ " " ++
-      drop 23 (unlines (map (replicate 23 ' ' ++) (ppFinalEffect e)))
+      take 16 (ppInstruction label instr ++ repeat ' ') ++ " " ++
+      drop 23 (unlines (map (replicate 23 ' ' ++) (ppFinalEffect label e)))

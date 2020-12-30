@@ -10,6 +10,7 @@ module Dis65.Effect.Mem
 
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Word
 
 import Dis65.Instruction (AddrArg, ppAddrArg)
 import Dis65.Effect.Class
@@ -152,14 +153,9 @@ canWrite a (MemEffect _ (ArgSet w) _) = Set.member a w
 --------------------------------------------------------------------------------
 -- Pretty printing
 
-ppMemEffect :: MemEffect -> String
-ppMemEffect (MemEffect r w _) =
+-- | Parameterized by a printer for labels.
+ppMemEffect :: (Word16 -> String) -> MemEffect -> String
+ppMemEffect label (MemEffect r w _) =
   unwords $
-  "READS" : map ppAddrArg (elems r) ++
-  "WRITES" : map ppAddrArg (elems w)
-  -- "CLEARS" : [ppArgSet' o]
-{-
-ppArgSet' :: ArgSet' -> String
-ppArgSet' Univ = "all"
-ppArgSet' (Fin s) = unwords (map ppAddrArg (elems s))
--}
+  "READS" : map (ppAddrArg label) (elems r) ++
+  "WRITES" : map (ppAddrArg label) (elems w)
