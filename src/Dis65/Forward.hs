@@ -72,6 +72,9 @@ addrWriteInd = AddrUsage (bit 11)
 addrWord :: AddrUsage
 addrWord = AddrUsage (bit 12)
 
+addrLabel :: AddrUsage
+addrLabel = AddrUsage (bit 13)
+
 --------------------------------------------------------------------------------
 -- * Forward analysis
 
@@ -300,6 +303,7 @@ ppAddrUsage a =
   , (addrWriteIx, "W+")
   , (addrReadInd, "(R)")
   , (addrWriteInd, "(W)")
+  , (addrLabel, "L")
   ]
   where
     f (x, s) = if has x a then Just s else Nothing
