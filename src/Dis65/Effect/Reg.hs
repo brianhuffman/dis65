@@ -140,3 +140,16 @@ ppRegs (Regs mask) = concatMap showReg [A,X,Y,S,C,Z,I,D,V,N]
 
 ppRegEffect :: RegEffect -> String
 ppRegEffect (RegEffect r w _) = concat [ppRegs r, "/", ppRegs w]
+
+ppRegEffect' :: RegEffect -> String
+ppRegEffect' (RegEffect (Regs r) (Regs w) (Regs o)) =
+  concatMap showReg [A,X,Y,S,C,Z,I,D,V,N]
+  where
+    showReg b =
+      case (testBit r i, testBit w i, testBit o i) of
+        (True, _, _) -> show b
+        (False, True, True) -> "-"
+        (False, False, False) -> "="
+        (False, False, True) -> "?"
+        (False, True, False) -> "-"
+      where i = regBit b
