@@ -10,16 +10,17 @@ import Dis65.Forward
 
 labelPrefix :: AddrUsage -> Maybe String
 labelPrefix u
-  | has addrJsr u            = Just "S"
+  | has addrJsr u            = Just "R"
   | has addrJump u           = Just "J"
   | has addrJumpInd u        = Just "K"
   | has addrBranchBoth u     = Just "W"
   | has addrBranchBackward u = Just "U"
   | has addrBranchForward u  = Just "V"
-  | has addrReadIx u         = Just "T"
-  | has addrWriteIx u        = Just "T"
+  | has addrReadIx u         = Just "L"
+  | has addrWriteIx u        = Just "L"
   | has addrRead u           = Just "L"
   | has addrWrite u          = Just "L"
+  | has addrLabel u          = Just "L"
   | otherwise                = Nothing
 
 needsLabel :: AddrUsage -> Bool
