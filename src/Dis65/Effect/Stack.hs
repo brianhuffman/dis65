@@ -7,6 +7,7 @@ module Dis65.Effect.Stack
   , thenFinalStackEffect
   , jsrFinalStackEffect
   , ppFinalStackEffect
+  , ppFinalStackEffect'
   , brkEffect
   , rtiEffect
   , rtsEffect
@@ -189,6 +190,14 @@ ppFinalStackEffect e =
   where
     prefix s1 s2 = if null s2 then s1 else s1 ++ ": " ++ s2
     ppStackEffect' end = ppStackEffect (StackEffect (mid e) end)
+
+ppFinalStackEffect' :: FinalStackEffect -> String
+ppFinalStackEffect' e =
+  case rts e of
+    Nothing -> "-"
+    Just (StackRange lo hi)
+      | lo == hi -> show (- lo)
+      | otherwise -> "?"
 
 brkEffect :: FinalStackEffect
 brkEffect = mempty { brk = Just noEffect }
