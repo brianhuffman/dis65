@@ -93,18 +93,12 @@ ppStackEffect (StackEffect (StackRange a b) (StackRange c d))
   | b == max 0 c = show (0 - a) ++ "->" ++ show (c - a)
   | otherwise = show (0 - a) ++ "->" ++ show (b - a) ++ "->" ++ show (c - a)
 
-ppStackRange :: StackRange -> String
-ppStackRange (StackRange a b)
-  | (a, b) == (0, 0) = ""
-  | otherwise = show (a, b)
-
 --------------------------------------------------------------------------------
 -- * FinalStackEffect
 
 data FinalStackEffect =
   FinalStackEffect
   { mid :: StackRange -- ^ Possible range of stack heights over duration of computation
-  , loop :: !Bool -- ^ Whether it is possible to enter an infinite loop
   , rts :: Maybe StackRange
   , rti :: Maybe StackRange
   , brk :: Maybe StackRange
@@ -124,7 +118,6 @@ instance Semigroup FinalStackEffect where
   e1 <> e2 =
     FinalStackEffect
     { mid = mid e1 +++ mid e2
-    , loop = loop e1 || loop e2
     , rts = combineMaybe (+++) (rts e1) (rts e2)
     , rti = combineMaybe (+++) (rti e1) (rti e2)
     , brk = combineMaybe (+++) (brk e1) (brk e2)
@@ -137,7 +130,6 @@ instance Monoid FinalStackEffect where
   mempty =
     FinalStackEffect
     { mid = noEffect
-    , loop = False
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
@@ -150,7 +142,6 @@ instance Bottom FinalStackEffect where
   bottom =
     FinalStackEffect
     { mid = noEffect
-    , loop = True
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
@@ -163,7 +154,6 @@ thenFinalStackEffect :: StackEffect -> FinalStackEffect -> FinalStackEffect
 thenFinalStackEffect (StackEffect mid1 end1) e2 =
   FinalStackEffect
   { mid = mid1 +++ (end1 >>> mid e2)
-  , loop = loop e2
   , rts = fmap (end1 >>>) (rts e2)
   , rti = fmap (end1 >>>) (rti e2)
   , brk = fmap (end1 >>>) (brk e2)
@@ -184,8 +174,7 @@ ppFinalStackEffect :: FinalStackEffect -> String
 ppFinalStackEffect e =
   unwords $
   catMaybes $
-  [ if loop e then Just (prefix "LOOP" (ppStackRange (mid e))) else Nothing
-  , fmap (prefix "RTS" . ppStackEffect') (rts e)
+  [ fmap (prefix "RTS" . ppStackEffect') (rts e)
   , fmap (prefix "RTI" . ppStackEffect') (rti e)
   , fmap (prefix "BRK" . ppStackEffect') (brk e)
   ] ++

@@ -70,6 +70,7 @@ data FinalEffect =
   , registers' :: !Reg.RegEffect
   , subroutines' :: !IntSet
   , branch' :: !Bool
+  , loop' :: !Bool -- ^ Whether it is possible to enter an infinite loop
   }
   deriving (Eq, Show)
 
@@ -81,6 +82,7 @@ instance Semigroup FinalEffect where
     , registers' = registers' e1 +++ registers' e2
     , subroutines' = subroutines' e1 <> subroutines' e2
     , branch' = branch' e1 || branch' e2
+    , loop' = loop' e1 || loop' e2
     }
 
 instance Monoid FinalEffect where
@@ -91,6 +93,7 @@ instance Monoid FinalEffect where
     , registers' = bottom
     , subroutines' = mempty
     , branch' = False
+    , loop' = False
     }
 
 instance Bottom FinalEffect where
@@ -101,6 +104,7 @@ instance Bottom FinalEffect where
     , registers' = bottom
     , subroutines' = mempty
     , branch' = False
+    , loop' = True
     }
 
 thenFinalEffect :: BasicEffect -> FinalEffect -> FinalEffect
@@ -111,6 +115,7 @@ thenFinalEffect e1 e2 =
   , registers' = registers e1 >>> registers' e2
   , subroutines' = subroutines e1 <> subroutines' e2
   , branch' = branch e1 || branch' e2
+  , loop' = loop' e2
   }
 
 jsrFinalEffect :: FinalEffect -> FinalEffect -> FinalEffect
@@ -121,6 +126,7 @@ jsrFinalEffect subroutine after =
   , registers' = registers' subroutine >>> registers' after
   , subroutines' = {- subroutines' subroutine <> -} subroutines' after
   , branch' = branch' subroutine || branch' after
+  , loop' = loop' subroutine || loop' after
   }
 
 mkFinalEffect :: Stack.FinalStackEffect -> FinalEffect
@@ -131,6 +137,7 @@ mkFinalEffect s =
     , registers' = noEffect
     , subroutines' = mempty
     , branch' = False
+    , loop' = False
     }
 
 brkFinalEffect :: FinalEffect
@@ -188,4 +195,5 @@ ppFinalEffect e =
   , Mem.ppMemEffect (memory' e)
   , ppSubroutines (subroutines' e)
   , if branch' e then "Branches" else ""
+  , if loop' e then "Loops" else ""
   ]
