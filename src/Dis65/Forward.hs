@@ -190,94 +190,94 @@ alreadyExecuted s pc =
     Just a -> has addrExec a
     Nothing -> False
 
-loop ::
+computeUsage ::
   IntMap Instruction ->
   MemUsage ->
   [Addr] ->
   MemUsage
-loop _mem s [] = s
-loop mem s (pc : pcs)
-  | alreadyExecuted s pc = loop mem s pcs
+computeUsage _mem s [] = s
+computeUsage mem s (pc : pcs)
+  | alreadyExecuted s pc = computeUsage mem s pcs
   | otherwise =
       case IntMap.lookup pc mem of
-        Nothing -> loop mem s pcs -- jump to external code/crash
+        Nothing -> computeUsage mem s pcs -- jump to external code/crash
         Just instr ->
           case instr of
             Reg _ ->
-              loop mem s' (pc + 1 : pcs)
+              computeUsage mem s' (pc + 1 : pcs)
             Stack _ ->
-              loop mem s' (pc + 1 : pcs)
+              computeUsage mem s' (pc + 1 : pcs)
             Read _ arg ->
-              loop mem (markRead arg s') (pc + 1 + sizeAddrArg arg : pcs)
+              computeUsage mem (markRead arg s') (pc + 1 + sizeAddrArg arg : pcs)
             Write _ arg ->
-              loop mem (markWrite arg s') (pc + 1 + sizeAddrArg arg : pcs)
+              computeUsage mem (markWrite arg s') (pc + 1 + sizeAddrArg arg : pcs)
             Modify _ arg ->
-              loop mem (markWrite arg (markRead arg s')) (pc + 1 + sizeAddrArg arg : pcs)
+              computeUsage mem (markWrite arg (markRead arg s')) (pc + 1 + sizeAddrArg arg : pcs)
             Accumulator _ ->
-              loop mem s' (pc + 1 : pcs)
+              computeUsage mem s' (pc + 1 : pcs)
             Branch _ (fromIntegral -> target) ->
-              loop mem (mark target tag s') (pc + 2 : target : pcs)
+              computeUsage mem (mark target tag s') (pc + 2 : target : pcs)
               where tag = if target <= pc then addrBranchBackward else addrBranchForward
             BRK ->
-              loop mem s' pcs
+              computeUsage mem s' pcs
             JSR (fromIntegral -> target) ->
-              loop mem (mark target addrJsr s') (pc + 3 : target : pcs)
+              computeUsage mem (mark target addrJsr s') (pc + 3 : target : pcs)
             RTI ->
-              loop mem s' pcs
+              computeUsage mem s' pcs
             RTS ->
-              loop mem s' pcs
+              computeUsage mem s' pcs
             AbsJMP (fromIntegral -> target) ->
-              loop mem (mark target addrJump s') (target : pcs)
+              computeUsage mem (mark target addrJump s') (target : pcs)
             IndJMP (fromIntegral -> target) ->
-              loop mem (mark target addrWord s') pcs
+              computeUsage mem (mark target addrWord s') pcs
             Undoc _ ->
-              loop mem s' pcs
+              computeUsage mem s' pcs
 
           where
             s' = mark pc addrExec s
 
-loop' ::
+computeUsage' ::
   IntMap (Instruction, [Addr]) ->
   MemUsage ->
   [Addr] ->
   MemUsage
-loop' _mem s [] = s
-loop' mem s (pc : pcs)
-  | alreadyExecuted s pc = loop' mem s pcs
+computeUsage' _mem s [] = s
+computeUsage' mem s (pc : pcs)
+  | alreadyExecuted s pc = computeUsage' mem s pcs
   | otherwise =
       case IntMap.lookup pc mem of
-        Nothing -> loop' mem s pcs -- jump to external code/crash
+        Nothing -> computeUsage' mem s pcs -- jump to external code/crash
         Just (instr, next) ->
           case instr of
             Reg _ ->
-              loop' mem s' (next ++ pcs)
+              computeUsage' mem s' (next ++ pcs)
             Stack _ ->
-              loop' mem s' (next ++ pcs)
+              computeUsage' mem s' (next ++ pcs)
             Read _ arg ->
-              loop' mem (markRead arg s') (next ++ pcs)
+              computeUsage' mem (markRead arg s') (next ++ pcs)
             Write _ arg ->
-              loop' mem (markWrite arg s') (next ++ pcs)
+              computeUsage' mem (markWrite arg s') (next ++ pcs)
             Modify _ arg ->
-              loop' mem (markWrite arg (markRead arg s')) (next ++ pcs)
+              computeUsage' mem (markWrite arg (markRead arg s')) (next ++ pcs)
             Accumulator _ ->
-              loop' mem s' (pc + 1 : pcs)
+              computeUsage' mem s' (pc + 1 : pcs)
             Branch _ (fromIntegral -> target) ->
-              loop' mem (mark target tag s') (next ++ pcs)
+              computeUsage' mem (mark target tag s') (next ++ pcs)
               where tag = if target <= pc then addrBranchBackward else addrBranchForward
             BRK ->
-              loop' mem s' (next ++ pcs)
+              computeUsage' mem s' (next ++ pcs)
             JSR (fromIntegral -> target) ->
-              loop' mem (mark target addrJsr s') (next ++ pcs)
+              computeUsage' mem (mark target addrJsr s') (next ++ pcs)
             RTI ->
-              loop' mem s' pcs
+              computeUsage' mem s' pcs
             RTS ->
-              loop' mem s' pcs
+              computeUsage' mem s' pcs
             AbsJMP (fromIntegral -> target) ->
-              loop' mem (mark target addrJump s') (next ++ pcs)
+              computeUsage' mem (mark target addrJump s') (next ++ pcs)
             IndJMP (fromIntegral -> target) ->
-              loop' mem (mark target addrWord s') (next ++ pcs)
+              computeUsage' mem (mark target addrWord s') (next ++ pcs)
             Undoc _ ->
-              loop' mem s' (next ++ pcs)
+              computeUsage' mem s' (next ++ pcs)
           where
             s' = mark pc addrExec s
 
