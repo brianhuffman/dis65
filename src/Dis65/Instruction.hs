@@ -213,7 +213,7 @@ decodeInstruction memory pc =
     getWord16 =
       do lo <- IntMap.lookup (pc + 1) memory
          hi <- IntMap.lookup (pc + 2) memory
-         pure (fromIntegral lo + fromIntegral hi * 256)
+         pure (word lo hi)
 
     getInt8 :: Maybe Int8
     getInt8 = fromIntegral <$> getWord8
