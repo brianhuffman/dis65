@@ -154,7 +154,7 @@ ppInstruction =
     RTS -> "RTS"
     AbsJMP w -> "JMP $" ++ ppWord16 w
     IndJMP w -> "JMP ($" ++ ppWord16 w ++ ")"
-    Undoc b -> "byt $" ++ ppWord8 b
+    Undoc b -> ".byt $" ++ ppWord8 b
 
 --------------------------------------------------------------------------------
 -- * Decoding
