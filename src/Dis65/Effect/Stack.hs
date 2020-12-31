@@ -17,8 +17,8 @@ module Dis65.Effect.Stack
   , normalStackEffect
   ) where
 
-import           Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
+import           Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 import           Data.Maybe
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -103,8 +103,8 @@ data FinalStackEffect =
   , rts :: Maybe StackRange
   , rti :: Maybe StackRange
   , undoc :: Set Word8
-  , jmpAbs :: IntMap StackRange
-  , jmpInd :: IntMap StackRange
+  , jmpAbs :: IntSet
+  , jmpInd :: IntSet
   }
   deriving (Eq, Show)
 
@@ -121,8 +121,8 @@ instance Semigroup FinalStackEffect where
     , rts = combineMaybe (+++) (rts e1) (rts e2)
     , rti = combineMaybe (+++) (rti e1) (rti e2)
     , undoc = Set.union (undoc e1) (undoc e2)
-    , jmpAbs = IntMap.unionWith (+++) (jmpAbs e1) (jmpAbs e2)
-    , jmpInd = IntMap.unionWith (+++) (jmpInd e1) (jmpInd e2)
+    , jmpAbs = IntSet.union (jmpAbs e1) (jmpAbs e2)
+    , jmpInd = IntSet.union (jmpInd e1) (jmpInd e2)
     }
 
 instance Monoid FinalStackEffect where
@@ -132,8 +132,8 @@ instance Monoid FinalStackEffect where
     , rts = Nothing
     , rti = Nothing
     , undoc = Set.empty
-    , jmpAbs = IntMap.empty
-    , jmpInd = IntMap.empty
+    , jmpAbs = IntSet.empty
+    , jmpInd = IntSet.empty
     }
 
 instance Bottom FinalStackEffect where
@@ -143,8 +143,8 @@ instance Bottom FinalStackEffect where
     , rts = Nothing
     , rti = Nothing
     , undoc = Set.empty
-    , jmpAbs = IntMap.empty
-    , jmpInd = IntMap.empty
+    , jmpAbs = IntSet.empty
+    , jmpInd = IntSet.empty
     }
 
 thenFinalStackEffect :: StackEffect -> FinalStackEffect -> FinalStackEffect
@@ -154,8 +154,8 @@ thenFinalStackEffect (StackEffect mid1 end1) e2 =
   , rts = fmap (end1 >>>) (rts e2)
   , rti = fmap (end1 >>>) (rti e2)
   , undoc = undoc e2
-  , jmpAbs = fmap (end1 >>>) (jmpAbs e2)
-  , jmpInd = fmap (end1 >>>) (jmpInd e2)
+  , jmpAbs = jmpAbs e2
+  , jmpInd = jmpInd e2
   }
 
 jsrFinalStackEffect :: FinalStackEffect -> FinalStackEffect -> FinalStackEffect
@@ -175,11 +175,11 @@ ppFinalStackEffect e =
   ] ++
   [ Just (ppWord8 op) | op <- Set.elems (undoc e) ]
   ++
-  [ Just $ prefix ("JMP $" ++ ppWord16 (fromIntegral a)) $ ppStackEffect' be
-  | (a, be) <- IntMap.assocs (jmpAbs e) ]
+  [ Just ("JMP $" ++ ppWord16 (fromIntegral a))
+  | a <- IntSet.elems (jmpAbs e) ]
   ++
-  [ Just $ prefix ("JMP ($" ++ ppWord16 (fromIntegral a) ++ ")") $ ppStackEffect' be
-  | (a, be) <- IntMap.assocs (jmpInd e) ]
+  [ Just ("JMP ($" ++ ppWord16 (fromIntegral a) ++ ")")
+  | a <- IntSet.elems (jmpInd e) ]
   where
     prefix s1 s2 = if null s2 then s1 else s1 ++ ": " ++ s2
     ppStackEffect' end = ppStackEffect (StackEffect (mid e) end)
@@ -202,10 +202,10 @@ rtsEffect :: FinalStackEffect
 rtsEffect = mempty { rts = Just noEffect }
 
 jmpAbsEffect :: Int -> FinalStackEffect
-jmpAbsEffect addr = mempty { jmpAbs = IntMap.singleton addr noEffect }
+jmpAbsEffect addr = mempty { jmpAbs = IntSet.singleton addr }
 
 jmpIndEffect :: Word16 -> FinalStackEffect
-jmpIndEffect addr = mempty { jmpInd = IntMap.singleton (fromIntegral addr) noEffect }
+jmpIndEffect addr = mempty { jmpInd = IntSet.singleton (fromIntegral addr) }
 
 undocEffect :: Word8 -> FinalStackEffect
 undocEffect op = mempty { undoc = Set.singleton op }
@@ -220,6 +220,6 @@ normalStackEffect e =
   , maybe False (== noEffect) (rts e)
   , rti e == Nothing
   , Set.null (undoc e)
-  , IntMap.null (jmpAbs e)
-  , IntMap.null (jmpInd e)
+  , IntSet.null (jmpAbs e)
+  , IntSet.null (jmpInd e)
   ]
