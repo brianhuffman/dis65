@@ -19,9 +19,9 @@ module Dis65.Effect.Stack
 
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
 import           Data.Maybe
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Data.Word
 
 import Dis65.Addr (ppWord8, ppWord16)
@@ -103,7 +103,7 @@ data FinalStackEffect =
   , rts :: Maybe StackRange
   , rti :: Maybe StackRange
   , brk :: Maybe StackRange
-  , undoc :: Map Word8 StackRange
+  , undoc :: Set Word8
   , jmpAbs :: IntMap StackRange
   , jmpInd :: IntMap StackRange
   }
@@ -122,7 +122,7 @@ instance Semigroup FinalStackEffect where
     , rts = combineMaybe (+++) (rts e1) (rts e2)
     , rti = combineMaybe (+++) (rti e1) (rti e2)
     , brk = combineMaybe (+++) (brk e1) (brk e2)
-    , undoc = Map.unionWith (+++) (undoc e1) (undoc e2)
+    , undoc = Set.union (undoc e1) (undoc e2)
     , jmpAbs = IntMap.unionWith (+++) (jmpAbs e1) (jmpAbs e2)
     , jmpInd = IntMap.unionWith (+++) (jmpInd e1) (jmpInd e2)
     }
@@ -134,7 +134,7 @@ instance Monoid FinalStackEffect where
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
-    , undoc = Map.empty
+    , undoc = Set.empty
     , jmpAbs = IntMap.empty
     , jmpInd = IntMap.empty
     }
@@ -146,7 +146,7 @@ instance Bottom FinalStackEffect where
     , rts = Nothing
     , rti = Nothing
     , brk = Nothing
-    , undoc = Map.empty
+    , undoc = Set.empty
     , jmpAbs = IntMap.empty
     , jmpInd = IntMap.empty
     }
@@ -158,7 +158,7 @@ thenFinalStackEffect (StackEffect mid1 end1) e2 =
   , rts = fmap (end1 >>>) (rts e2)
   , rti = fmap (end1 >>>) (rti e2)
   , brk = fmap (end1 >>>) (brk e2)
-  , undoc = fmap (end1 >>>) (undoc e2)
+  , undoc = undoc e2
   , jmpAbs = fmap (end1 >>>) (jmpAbs e2)
   , jmpInd = fmap (end1 >>>) (jmpInd e2)
   }
@@ -179,8 +179,7 @@ ppFinalStackEffect e =
   , fmap (prefix "RTI" . ppStackEffect') (rti e)
   , fmap (prefix "BRK" . ppStackEffect') (brk e)
   ] ++
-  [ Just $ prefix (ppWord8 op) $ ppStackEffect' be
-  | (op, be) <- Map.assocs (undoc e) ]
+  [ Just (ppWord8 op) | op <- Set.elems (undoc e) ]
   ++
   [ Just $ prefix ("JMP $" ++ ppWord16 (fromIntegral a)) $ ppStackEffect' be
   | (a, be) <- IntMap.assocs (jmpAbs e) ]
@@ -215,7 +214,7 @@ jmpIndEffect :: Word16 -> FinalStackEffect
 jmpIndEffect addr = mempty { jmpInd = IntMap.singleton (fromIntegral addr) noEffect }
 
 undocEffect :: Word8 -> FinalStackEffect
-undocEffect op = mempty { undoc = Map.singleton op noEffect }
+undocEffect op = mempty { undoc = Set.singleton op }
 
 --------------------------------------------------------------------------------
 -- * Normal subroutines
@@ -227,7 +226,7 @@ normalStackEffect e =
   , maybe False (== noEffect) (rts e)
   , rti e == Nothing
   , brk e == Nothing
-  , Map.null (undoc e)
+  , Set.null (undoc e)
   , IntMap.null (jmpAbs e)
   , IntMap.null (jmpInd e)
   ]
