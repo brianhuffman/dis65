@@ -102,7 +102,6 @@ data FinalStackEffect =
   { mid :: StackRange -- ^ Possible range of stack heights over duration of computation
   , rts :: Maybe StackRange
   , rti :: Maybe StackRange
-  , brk :: Maybe StackRange
   , undoc :: Set Word8
   , jmpAbs :: IntMap StackRange
   , jmpInd :: IntMap StackRange
@@ -121,7 +120,6 @@ instance Semigroup FinalStackEffect where
     { mid = mid e1 +++ mid e2
     , rts = combineMaybe (+++) (rts e1) (rts e2)
     , rti = combineMaybe (+++) (rti e1) (rti e2)
-    , brk = combineMaybe (+++) (brk e1) (brk e2)
     , undoc = Set.union (undoc e1) (undoc e2)
     , jmpAbs = IntMap.unionWith (+++) (jmpAbs e1) (jmpAbs e2)
     , jmpInd = IntMap.unionWith (+++) (jmpInd e1) (jmpInd e2)
@@ -133,7 +131,6 @@ instance Monoid FinalStackEffect where
     { mid = noEffect
     , rts = Nothing
     , rti = Nothing
-    , brk = Nothing
     , undoc = Set.empty
     , jmpAbs = IntMap.empty
     , jmpInd = IntMap.empty
@@ -145,7 +142,6 @@ instance Bottom FinalStackEffect where
     { mid = noEffect
     , rts = Nothing
     , rti = Nothing
-    , brk = Nothing
     , undoc = Set.empty
     , jmpAbs = IntMap.empty
     , jmpInd = IntMap.empty
@@ -157,7 +153,6 @@ thenFinalStackEffect (StackEffect mid1 end1) e2 =
   { mid = mid1 +++ (end1 >>> mid e2)
   , rts = fmap (end1 >>>) (rts e2)
   , rti = fmap (end1 >>>) (rti e2)
-  , brk = fmap (end1 >>>) (brk e2)
   , undoc = undoc e2
   , jmpAbs = fmap (end1 >>>) (jmpAbs e2)
   , jmpInd = fmap (end1 >>>) (jmpInd e2)
@@ -177,7 +172,6 @@ ppFinalStackEffect e =
   catMaybes $
   [ fmap (prefix "RTS" . ppStackEffect') (rts e)
   , fmap (prefix "RTI" . ppStackEffect') (rti e)
-  , fmap (prefix "BRK" . ppStackEffect') (brk e)
   ] ++
   [ Just (ppWord8 op) | op <- Set.elems (undoc e) ]
   ++
@@ -199,7 +193,7 @@ ppFinalStackEffect' e =
       | otherwise -> "?"
 
 brkEffect :: FinalStackEffect
-brkEffect = mempty { brk = Just noEffect }
+brkEffect = undocEffect 0x00
 
 rtiEffect :: FinalStackEffect
 rtiEffect = mempty { rti = Just noEffect }
@@ -225,7 +219,6 @@ normalStackEffect e =
   [ case mid e of StackRange lo _ -> lo == 0
   , maybe False (== noEffect) (rts e)
   , rti e == Nothing
-  , brk e == Nothing
   , Set.null (undoc e)
   , IntMap.null (jmpAbs e)
   , IntMap.null (jmpInd e)
