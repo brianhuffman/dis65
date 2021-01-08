@@ -9,6 +9,9 @@ module Dis65
   , jumpTable
   -- * Utilities
   , getVecs
+  , allJSRs
+  -- * Output
+  , ppCallGraph
   ) where
 
 import           Data.IntMap (IntMap)
@@ -111,3 +114,34 @@ getVecs mem v n =
      let t = addr16 (word lo hi)
      ts <- getVecs mem (v+2) (n-1)
      pure (t : ts)
+
+allJSRs :: IntMap Instruction -> IntSet
+allJSRs instrs =
+  IntSet.fromList
+  [ fromIntegral target | JSR target <- IntMap.elems instrs ]
+
+--------------------------------------------------------------------------------
+-- Fancy output
+
+-- | Output the call graph in graphviz .dot format.
+ppCallGraph :: IntMap (Instruction, FinalEffect) -> IntMap AddrUsage -> IntMap IntSet -> [String]
+ppCallGraph effs usage edges =
+  "digraph calls {" :
+  "\tgraph [rankdir=\"LR\"];" :
+  "\tgraph [ranksep=2.0];" :
+  map ppNode subs ++
+  map ppEdge edges' ++
+  [ "}" ]
+  where
+    subs = IntMap.assocs $ IntMap.intersection effs edges
+    edges' = [ (a, b) | (a, bs) <- IntMap.assocs edges, b <- IntSet.elems bs ]
+    instrs = fmap fst effs
+    jsrs = allJSRs $ IntMap.filterWithKey (\k _ -> alreadyExecuted usage k) instrs
+    ppEdge (a, b) =
+      "\tj_" ++ ppAddr a ++ " -> j_" ++ ppAddr b ++ ";"
+    ppNode (a, (_, e)) =
+      "\tj_" ++ ppAddr a ++
+      " [label=\"" ++ map toUpper (ppAddr a) ++
+      "\", shape=" ++ (if normalSubroutine e then "box" else "ellipse") ++
+      (if IntSet.notMember a jsrs then ", style=filled" else "") ++
+      "];"
