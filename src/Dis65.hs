@@ -12,18 +12,28 @@ module Dis65
   , allJSRs
   -- * Output
   , ppCallGraph
+  , ppCombined
   ) where
 
+import           Control.Monad
+import           Data.Char (toUpper)
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
+import           Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
+import           Data.List
+import           Data.Maybe
 import           Data.Word
 
 import Dis65.Addr
 import Dis65.Effect
 import Dis65.Effect.Class
+import Dis65.Effect.Reg
+import Dis65.Effect.Stack (ppFinalStackEffect')
 import Dis65.Backward
 import Dis65.Forward
 import Dis65.Instruction
+import Dis65.Statement
 
 --------------------------------------------------------------------------------
 -- Pointer structures in memory
@@ -145,3 +155,79 @@ ppCallGraph effs usage edges =
       "\", shape=" ++ (if normalSubroutine e then "box" else "ellipse") ++
       (if IntSet.notMember a jsrs then ", style=filled" else "") ++
       "];"
+
+-- | Print disassembly together with effect information for all
+-- subroutines, as well as usage information for all labels.
+ppCombined :: IntMap FinalEffect -> MemUsage -> IntMap Addr -> [Statement] -> IO ()
+ppCombined effs usage regions = go Nothing
+  where
+    getEff a = fromMaybe mempty (IntMap.lookup a effs)
+
+    label :: Word16 -> String
+    label w = ppLabel usage (addr16 w)
+
+    pad :: Int -> String -> String
+    pad w s
+      | n <= w = s ++ replicate (w - n) ' '
+      | otherwise = s ++ '\n' : replicate n ' '
+      where n = length s
+
+    takeBytes :: Int -> [Statement] -> ([Word8], [Statement])
+    takeBytes i (StmtByte _ b : stmts)
+      | i > 0 = let (bs, stmts') = takeBytes (i - 1) stmts in (b : bs, stmts')
+    takeBytes _ stmts = ([], stmts)
+
+    stmtAddr :: Statement -> Addr
+    stmtAddr =
+      \case
+        StmtLabel a -> a
+        StmtDefine a -> a
+        StmtCode a _ -> a
+        StmtByte a _ -> a
+        StmtWord a _ -> a
+        StmtSection a -> a
+
+    go :: Maybe Addr -> [Statement] -> IO ()
+    go _ [] = pure ()
+    go r (stmt : stmts) =
+      do let r' = IntMap.lookup (stmtAddr stmt) regions
+         case stmt of
+           StmtLabel a ->
+             do when (r /= r') $ putStrLn $ "\n; " ++ replicate 76 '-'
+                when (IntMap.lookup a regions == Just a) $
+                  mapM_ putStrLn $ map ("; " ++) (ppFinalEffect label (getEff a))
+                putStrLn $
+                  pad 48 (ppLabel usage a ++ ":") ++ "; " ++ ppAddrUsage (lookupUsage usage a)
+                go r' stmts
+           StmtDefine a ->
+             do putStrLn $
+                  pad 48 (ppLabel usage a ++ " := $" ++ ppAddr a) ++
+                  "; " ++ ppAddrUsage (lookupUsage usage a)
+                go r' stmts
+           StmtCode a i ->
+             do let e = getEff a
+                putStrLn $
+                  pad 48 ("    " ++ ppInstr usage i) ++
+                  unwords [";", ppAddr a, ppRegEffect' (registers' e), ppFinalStackEffect' (stack' e)]
+                go r' stmts
+           StmtByte a b0 ->
+             do let (bs, stmts') = takeBytes 7 stmts
+                putStrLn $
+                  pad 48 ("    .byte " ++ intercalate "," ["$" ++ ppWord8 b | b <- b0 : bs]) ++
+                  "; " ++ ppAddr a
+                go r' stmts'
+           StmtWord a w ->
+             do putStrLn $
+                  pad 48 ("    .word " ++ ppLabel usage w) ++
+                  "; " ++ ppAddr a
+                go r' stmts
+           StmtSection a ->
+             do putStrLn $ "\n.org $" ++ ppAddr a
+                go r' stmts
+
+ppLabel :: MemUsage -> Addr -> String
+ppLabel usage addr =
+  fromMaybe "$" (IntMap.lookup addr usage >>= labelPrefix) ++ ppAddr addr
+
+ppInstr :: MemUsage -> Instruction -> String
+ppInstr usage = ppInstruction (ppLabel usage . addr16)
