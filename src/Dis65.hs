@@ -6,6 +6,7 @@ module Dis65
   , markTypes
   -- * Overrides
   , alwaysBranch
+  , jumpTable
   -- * Utilities
   , getVecs
   ) where
@@ -77,6 +78,27 @@ alwaysBranch instrs pc =
       let effect = noEffect { registers = doOpBranch op, branch = True }
       in thenFinalEffect effect (mconcat es)
 
+-- | Override for a subroutine that implements a jump table. The table
+-- of vectors is expected to start just after the JSR instruction.
+jumpTable ::
+  -- | Address of jump table subroutine
+  Addr ->
+  -- | Memory contents
+  IntMap Word8 ->
+  -- | Address of JSR instruction
+  Addr ->
+  -- | Number of vectors in jump table
+  Int ->
+  (Addr, Override)
+jumpTable sr mem base len =
+  case getVecs mem (base+1) (len+1) of
+    Just (t : ts) | t == sr -> (base, Override (t : ts) jumpTableEffect)
+    _ -> error "jumpTable: invalid memory contents"
+  where
+    jumpTableEffect [] = bottom
+    jumpTableEffect (_ : es) =
+      let effect = noEffect { subroutines = IntSet.singleton sr }
+      in thenFinalEffect effect $ mconcat es
 
 --------------------------------------------------------------------------------
 -- Utility functions
