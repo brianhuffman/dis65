@@ -13,6 +13,7 @@ module Dis65
   -- * Output
   , ppCallGraph
   , ppCombined
+  , ppMemEffectsByPC
   ) where
 
 import           Control.Monad
@@ -21,6 +22,8 @@ import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import           Data.List
 import           Data.Maybe
 import           Data.Word
@@ -34,6 +37,8 @@ import Dis65.Backward
 import Dis65.Forward
 import Dis65.Instruction
 import Dis65.Statement
+
+import qualified Dis65.Effect.Mem as Mem
 
 --------------------------------------------------------------------------------
 -- Pointer structures in memory
@@ -231,3 +236,30 @@ ppLabel usage addr =
 
 ppInstr :: MemUsage -> Instruction -> String
 ppInstr usage = ppInstruction (ppLabel usage . addr16)
+
+ppMemEffectsByPC :: (Addr -> String) -> IntMap Mem.MemEffect -> IO ()
+ppMemEffectsByPC label es =
+  mapM_ ppEntry (Map.assocs es')
+  where
+    rs :: IntMap (Set.Set AddrArg)
+    rs = fmap (\(Mem.MemEffect (Mem.ArgSet x) _ _) -> x) es
+
+    ws :: IntMap (Set.Set AddrArg)
+    ws = fmap (\(Mem.MemEffect _ (Mem.ArgSet x) _) -> x) es
+
+    es' :: Map.Map AddrArg (IntSet, IntSet)
+    es' =
+      Map.unionWith (<>)
+      (fmap (\x -> (x, mempty)) (trans rs))
+      (fmap (\x -> (mempty, x)) (trans ws))
+
+    trans :: Ord a => IntMap (Set.Set a) -> Map.Map a IntSet
+    trans xss =
+      Map.fromListWith (<>)
+      [ (a, IntSet.singleton x) | (x, as) <- IntMap.assocs xss, a <- Set.elems as ]
+
+    ppEntry :: (AddrArg, (IntSet, IntSet)) -> IO ()
+    ppEntry (arg, (r, w)) =
+      do putStrLn $ ppAddrArg (label . addr16) arg
+         putStrLn $ "    " ++ unwords ("READ by:" : map label (IntSet.elems r))
+         putStrLn $ "    " ++ unwords ("WRITTEN by:" : map label (IntSet.elems w))
