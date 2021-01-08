@@ -75,7 +75,7 @@ doOpR =
     BIT -> Reg.readA >>> Reg.writeNZ >>> Reg.writeV
     CMP -> Reg.readA >>> Reg.writeNZC
     CPX -> Reg.readX >>> Reg.writeNZC
-    CPY -> Reg.readX >>> Reg.writeNZC
+    CPY -> Reg.readY >>> Reg.writeNZC
     LDA -> Reg.writeA >>> Reg.writeNZ
     LDX -> Reg.writeX >>> Reg.writeNZ
     LDY -> Reg.writeY >>> Reg.writeNZ
