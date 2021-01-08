@@ -62,10 +62,7 @@ disassemble mem usage = go False 0x0000
                   go False (addr + 1)
       where
         sections = if rom then [] else [StmtSection addr]
-        labels =
-          case labelPrefix (lookupUsage usage addr) of
-            Just _ -> [addr]
-            Nothing -> []
+        labels = if needsLabel (lookupUsage usage addr) then [addr] else []
 
 ordinaryInstruction :: IntMap Word8 -> IntMap AddrUsage -> Addr -> Maybe Instruction
 ordinaryInstruction mem usage addr =
