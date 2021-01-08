@@ -24,7 +24,7 @@ labelPrefix u
   | otherwise                = Nothing
 
 needsLabel :: AddrUsage -> Bool
-needsLabel u = not (has u addrWord)
+needsLabel u = not (has u (addrExec <> addrWord))
 
 data Statement
   = StmtLabel Addr
