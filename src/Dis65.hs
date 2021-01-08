@@ -6,6 +6,8 @@ module Dis65
   , markTypes
   -- * Overrides
   , alwaysBranch
+  -- * Utilities
+  , getVecs
   ) where
 
 import           Data.IntMap (IntMap)
@@ -74,3 +76,16 @@ alwaysBranch instrs pc =
     branchEffect op es =
       let effect = noEffect { registers = doOpBranch op, branch = True }
       in thenFinalEffect effect (mconcat es)
+
+
+--------------------------------------------------------------------------------
+-- Utility functions
+
+getVecs :: IntMap Word8 -> Addr -> Int -> Maybe [Addr]
+getVecs _ _ 0 = Just []
+getVecs mem v n =
+  do lo <- IntMap.lookup v mem
+     hi <- IntMap.lookup (v+1) mem
+     let t = addr16 (word lo hi)
+     ts <- getVecs mem (v+2) (n-1)
+     pure (t : ts)
