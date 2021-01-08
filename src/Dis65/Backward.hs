@@ -236,6 +236,19 @@ getAddr mem pc =
          pure (addr16 (word lo hi))
 
 --------------------------------------------------------------------------------
+-- * Overrides
+
+-- | An override specifies an alternative semantics for an
+-- instruction. It contains a list of successor addresses, as well as
+-- a function that combines the effects from those addresses to
+-- produce a new effect.
+data Override = Override [Addr] ([FinalEffect] -> FinalEffect)
+
+overrideSuccessors :: Override -> [Addr]
+overrideSuccessors (Override xs _) = xs
+
+
+--------------------------------------------------------------------------------
 -- * Computing FinalEffect for all instructions
 
 {-
@@ -287,10 +300,10 @@ computeFinalEffects ::
   -- | Program
   IntMap Instruction ->
   -- | Overrides
-  IntMap ([Addr], [FinalEffect] -> FinalEffect) ->
+  IntMap Override ->
   IO (IntMap (Instruction, FinalEffect))
 computeFinalEffects instructions overrides =
-  do let successors = fmap fst overrides <> allSuccessors instructions
+  do let successors = fmap overrideSuccessors overrides <> allSuccessors instructions
      let predecessors = fmap IntSet.fromList (computePredecessors successors)
      let state0 = IntMap.map (const bottom) instructions
      let worklist0 = IntMap.keysSet instructions
@@ -305,7 +318,7 @@ computeFinalEffects instructions overrides =
                   new =
                     case IntMap.lookup addr overrides of
                       Nothing -> computeEffectAt instructions state addr
-                      Just (addrs, f) -> f (map (lookupEffect state) addrs)
+                      Just (Override addrs f) -> f (map (lookupEffect state) addrs)
                 if old == new then go worklist' state else
                   do let dirty = fromMaybe mempty (IntMap.lookup addr predecessors)
                      go (IntSet.union dirty worklist') (IntMap.insert addr new state)
