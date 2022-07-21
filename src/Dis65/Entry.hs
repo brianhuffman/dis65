@@ -16,6 +16,13 @@ import Dis65.Addr
 
 -- | Arguments include the control flow graph (encoded as an 'IntMap'
 -- of successor addresses) and an initial set of known entry points.
+-- The collection of all reachable addresses is partitioned into a set
+-- of regions, each with a single entry point. Every edge in the
+-- control flow graph must either be contained within one region, or
+-- else its destination must be the entry point of another region. Any
+-- address reachable from two different entry points is added as a new
+-- entry point.
+--
 -- The output consists of the extended set of region entry points, the
 -- mapping from program addresses to entry points, and the quotient
 -- graph of control-flow edges between regions.
