@@ -1,6 +1,7 @@
 module Dis65.Effect.Mem
   ( MemEffect(..)
   , ArgSet(..)
+  , ArgSet'(..)
   , readAddr
   , writeAddr
   , modifyAddr
