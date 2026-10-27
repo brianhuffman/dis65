@@ -149,7 +149,9 @@ excitebike_2 =
      putStrLn (replicate 80 '-')
      ppCombined' knownLabels (fmap snd effs) usage regions statements
      putStrLn (replicate 80 '-')
-     mapM_ putStrLn $ ppCallGraph' knownLabels effs usage edges
+     putStrLn "Writing `excitebike.dot`."
+     writeFile "excitebike.dot" $
+       unlines $ ppCallGraph' knownLabels effs usage edges
 
 ppLabel :: MemUsage -> Addr -> String
 ppLabel usage addr =
