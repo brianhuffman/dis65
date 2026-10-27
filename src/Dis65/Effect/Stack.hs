@@ -51,7 +51,7 @@ instance Effect StackRange where
 instance NoEffect StackRange where
   noEffect = StackRange 0 0
 
--- | A 'StackEffect' contains two 'StackRanges': The first is the
+-- | A 'StackEffect' contains two 'StackRange's: The first is the
 -- range of possible stack heights (relative to 0 at the start) that
 -- the computation can take on at any time during its execution. The
 -- second is the range of possible stack heights at its conclusion,
