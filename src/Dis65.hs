@@ -55,20 +55,20 @@ markType mem addr =
       case getWord of
         Nothing -> IntMap.empty
         Just addr' ->
-          IntMap.insertWith (<>) (addr16 addr') addrLabel $
-          markTypes mem (addr16 addr') ts
+          IntMap.insertWith (<>) (sameBank addr addr') addrLabel $
+          markTypes mem (sameBank addr addr') ts
     TDataPtr ->
       IntMap.insertWith (<>) addr addrWord $
       case getWord of
         Nothing -> IntMap.empty
         Just addr' ->
-          IntMap.singleton (addr16 addr') addrLabel
+          IntMap.singleton (sameBank addr addr') addrLabel
     TCodePtr ->
       IntMap.insertWith (<>) addr addrWord $
       case getWord of
         Nothing -> IntMap.empty
         Just addr' ->
-          IntMap.singleton (addr16 addr') addrJumpInd
+          IntMap.singleton (sameBank addr addr') addrJumpInd
   where
     getWord :: Maybe Word16
     getWord =
@@ -109,7 +109,7 @@ jumpTable ::
   Int ->
   (Addr, Override)
 jumpTable sr mem base len =
-  case getVecs mem (base+1) (len+1) of
+  case map (sameBank base . fromIntegral) <$> getVecs mem (base+1) (len+1) of
     Just (t : ts) | t == sr -> (base, Override (t : ts) jumpTableEffect)
     _ -> error "jumpTable: invalid memory contents"
   where
@@ -126,14 +126,14 @@ getVecs _ _ 0 = Just []
 getVecs mem v n =
   do lo <- IntMap.lookup v mem
      hi <- IntMap.lookup (v+1) mem
-     let t = addr16 (word lo hi)
+     let t = sameBank v (word lo hi)
      ts <- getVecs mem (v+2) (n-1)
      pure (t : ts)
 
 allJSRs :: IntMap Instruction -> IntSet
 allJSRs instrs =
   IntSet.fromList
-  [ fromIntegral target | JSR target <- IntMap.elems instrs ]
+  [ sameBank pc target | (pc, JSR target) <- IntMap.assocs instrs ]
 
 --------------------------------------------------------------------------------
 -- Fancy output

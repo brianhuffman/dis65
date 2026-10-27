@@ -37,8 +37,10 @@ data Statement
 disassemble :: IntMap Word8 -> MemUsage -> [Statement]
 disassemble mem usage = go False 0x0000
   where
+    lastAddr :: Addr
+    lastAddr = fst (IntMap.findMax mem)
     go :: Bool -> Int -> [Statement]
-    go _rom addr | addr > 0xffff = []
+    go _rom addr | addr > lastAddr = []
     go rom addr =
       case ordinaryInstruction mem usage addr of
         Just instr ->

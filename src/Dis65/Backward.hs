@@ -135,12 +135,12 @@ computeSuccessors pc =
     Write _ arg -> [pc + 1 + sizeAddrArg arg]
     Modify _ arg -> [pc + 1 + sizeAddrArg arg]
     Accumulator _ -> [pc + 1]
-    Branch _ target -> [pc + 2, fromIntegral target]
-    JSR target -> [pc + 3, fromIntegral target]
+    Branch _ target -> [pc + 2, sameBank pc target]
+    JSR target -> [pc + 3, sameBank pc target]
     BRK -> []
     RTI -> []
     RTS -> []
-    AbsJMP target -> [fromIntegral target]
+    AbsJMP target -> [sameBank pc target]
     IndJMP _ -> []
     Undoc _ -> []
 
@@ -166,7 +166,7 @@ computeEffectAt ::
   -- | state
   IntMap FinalEffect ->
   -- | address
-  Int ->
+  Addr ->
   FinalEffect
 computeEffectAt instructions state pc =
   case IntMap.lookup pc instructions of
@@ -191,10 +191,10 @@ computeEffectAt instructions state pc =
        Accumulator op ->
          let effect = noEffect { registers = Reg.readA >>> doOpRW op >>> Reg.writeA }
          in thenFinalEffect effect $ lookupEffect state (pc + 1)
-       Branch op (fromIntegral -> target) ->
+       Branch op (sameBank pc -> target) ->
          let effect = noEffect { registers = doOpBranch op, branch = True }
          in thenFinalEffect effect $ (lookupEffect state (pc + 2) <> lookupEffect state target)
-       JSR (fromIntegral -> target) ->
+       JSR (sameBank pc -> target) ->
          let
            effect = noEffect { subroutines = IntSet.singleton target }
            subEffect = lookupEffect state target
@@ -208,7 +208,7 @@ computeEffectAt instructions state pc =
        RTS ->
          rtsFinalEffect
        AbsJMP target ->
-         lookupEffect state (fromIntegral target)
+         lookupEffect state (sameBank pc target)
        IndJMP target ->
          jmpIndFinalEffect target
        Undoc op ->
