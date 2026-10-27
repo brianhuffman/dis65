@@ -85,31 +85,31 @@ type MemUsage = IntMap AddrUsage
 mark :: Addr -> AddrUsage -> MemUsage -> MemUsage
 mark = IntMap.insertWith mappend
 
-markRead :: AddrArg -> MemUsage -> MemUsage
-markRead =
+markRead :: Addr -> AddrArg -> MemUsage -> MemUsage
+markRead pc =
   \case
-    IndirectX z -> mark (fromIntegral z) addrReadInd
-    ZeroPage  z -> mark (fromIntegral z) addrRead
+    IndirectX z -> mark (addr8 z) addrReadInd
+    ZeroPage  z -> mark (addr8 z) addrRead
     Immediate _ -> id
-    Absolute  w -> mark (fromIntegral w) addrRead
-    IndirectY z -> mark (fromIntegral z) addrReadInd
-    ZeroPageX z -> mark (fromIntegral z) addrReadIx
-    ZeroPageY z -> mark (fromIntegral z) addrReadIx
-    AbsoluteY w -> mark (fromIntegral w) addrReadIx
-    AbsoluteX w -> mark (fromIntegral w) addrReadIx
+    Absolute  w -> mark (sameBank pc w) addrRead
+    IndirectY z -> mark (addr8 z) addrReadInd
+    ZeroPageX z -> mark (addr8 z) addrReadIx
+    ZeroPageY z -> mark (addr8 z) addrReadIx
+    AbsoluteY w -> mark (sameBank pc w) addrReadIx
+    AbsoluteX w -> mark (sameBank pc w) addrReadIx
 
-markWrite :: AddrArg -> MemUsage -> MemUsage
-markWrite =
+markWrite :: Addr -> AddrArg -> MemUsage -> MemUsage
+markWrite pc =
   \case
-    IndirectX z -> mark (fromIntegral z) addrWriteInd
-    ZeroPage  z -> mark (fromIntegral z) addrWrite
+    IndirectX z -> mark (addr8 z) addrWriteInd
+    ZeroPage  z -> mark (addr8 z) addrWrite
     Immediate _ -> id
-    Absolute  w -> mark (fromIntegral w) addrWrite
-    IndirectY z -> mark (fromIntegral z) addrWriteInd
-    ZeroPageX z -> mark (fromIntegral z) addrWriteIx
-    ZeroPageY z -> mark (fromIntegral z) addrWriteIx
-    AbsoluteY w -> mark (fromIntegral w) addrWriteIx
-    AbsoluteX w -> mark (fromIntegral w) addrWriteIx
+    Absolute  w -> mark (sameBank pc w) addrWrite
+    IndirectY z -> mark (addr8 z) addrWriteInd
+    ZeroPageX z -> mark (addr8 z) addrWriteIx
+    ZeroPageY z -> mark (addr8 z) addrWriteIx
+    AbsoluteY w -> mark (sameBank pc w) addrWriteIx
+    AbsoluteX w -> mark (sameBank pc w) addrWriteIx
 
 {-
 Memory map:
@@ -211,27 +211,27 @@ computeUsage mem s (pc : pcs)
             Stack _ ->
               computeUsage mem s' (pc + 1 : pcs)
             Read _ arg ->
-              computeUsage mem (markRead arg s') (pc + 1 + sizeAddrArg arg : pcs)
+              computeUsage mem (markRead pc arg s') (pc + 1 + sizeAddrArg arg : pcs)
             Write _ arg ->
-              computeUsage mem (markWrite arg s') (pc + 1 + sizeAddrArg arg : pcs)
+              computeUsage mem (markWrite pc arg s') (pc + 1 + sizeAddrArg arg : pcs)
             Modify _ arg ->
-              computeUsage mem (markWrite arg (markRead arg s')) (pc + 1 + sizeAddrArg arg : pcs)
+              computeUsage mem (markWrite pc arg (markRead pc arg s')) (pc + 1 + sizeAddrArg arg : pcs)
             Accumulator _ ->
               computeUsage mem s' (pc + 1 : pcs)
-            Branch _ (fromIntegral -> target) ->
+            Branch _ (sameBank pc -> target) ->
               computeUsage mem (mark target tag s') (pc + 2 : target : pcs)
               where tag = if target <= pc then addrBranchBackward else addrBranchForward
             BRK ->
               computeUsage mem s' pcs
-            JSR (fromIntegral -> target) ->
+            JSR (sameBank pc -> target) ->
               computeUsage mem (mark target addrJsr s') (pc + 3 : target : pcs)
             RTI ->
               computeUsage mem s' pcs
             RTS ->
               computeUsage mem s' pcs
-            AbsJMP (fromIntegral -> target) ->
+            AbsJMP (sameBank pc -> target) ->
               computeUsage mem (mark target addrJump s') (target : pcs)
-            IndJMP (fromIntegral -> target) ->
+            IndJMP (sameBank pc -> target) ->
               computeUsage mem (mark target addrWord s') pcs
             Undoc _ ->
               computeUsage mem s' pcs
@@ -239,6 +239,8 @@ computeUsage mem s (pc : pcs)
           where
             s' = mark pc addrExec s
 
+-- | Like 'computeUsage', but using a caller-provided map of successor
+-- PC values.
 computeUsage' ::
   IntMap (Instruction, [Addr]) ->
   MemUsage ->
@@ -257,27 +259,27 @@ computeUsage' mem s (pc : pcs)
             Stack _ ->
               computeUsage' mem s' (next ++ pcs)
             Read _ arg ->
-              computeUsage' mem (markRead arg s') (next ++ pcs)
+              computeUsage' mem (markRead pc arg s') (next ++ pcs)
             Write _ arg ->
-              computeUsage' mem (markWrite arg s') (next ++ pcs)
+              computeUsage' mem (markWrite pc arg s') (next ++ pcs)
             Modify _ arg ->
-              computeUsage' mem (markWrite arg (markRead arg s')) (next ++ pcs)
+              computeUsage' mem (markWrite pc arg (markRead pc arg s')) (next ++ pcs)
             Accumulator _ ->
               computeUsage' mem s' (pc + 1 : pcs)
-            Branch _ (fromIntegral -> target) ->
+            Branch _ (sameBank pc -> target) ->
               computeUsage' mem (mark target tag s') (next ++ pcs)
               where tag = if target <= pc then addrBranchBackward else addrBranchForward
             BRK ->
               computeUsage' mem s' (next ++ pcs)
-            JSR (fromIntegral -> target) ->
+            JSR (sameBank pc -> target) ->
               computeUsage' mem (mark target addrJsr s') (next ++ pcs)
             RTI ->
               computeUsage' mem s' pcs
             RTS ->
               computeUsage' mem s' pcs
-            AbsJMP (fromIntegral -> target) ->
+            AbsJMP (sameBank pc -> target) ->
               computeUsage' mem (mark target addrJump s') (next ++ pcs)
-            IndJMP (fromIntegral -> target) ->
+            IndJMP (sameBank pc -> target) ->
               computeUsage' mem (mark target addrWord s') (next ++ pcs)
             Undoc _ ->
               computeUsage' mem s' (next ++ pcs)
