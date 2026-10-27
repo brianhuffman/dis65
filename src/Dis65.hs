@@ -12,7 +12,9 @@ module Dis65
   , allJSRs
   -- * Output
   , ppCallGraph
+  , ppCallGraph'
   , ppCombined
+  , ppCombined'
   , ppMemEffectsByPC
   ) where
 
@@ -111,6 +113,7 @@ jumpTable ::
 jumpTable sr mem base len =
   case map (sameBank base . fromIntegral) <$> getVecs mem (base+1) (len+1) of
     Just (t : ts) | t == sr -> (base, Override (t : ts) jumpTableEffect)
+    Just (t : _) | t /= sr -> error $ "wrong jsr: " ++ show (ppAddr t, ppAddr sr)
     _ -> error "jumpTable: invalid memory contents"
   where
     jumpTableEffect [] = bottom
@@ -140,7 +143,10 @@ allJSRs instrs =
 
 -- | Output the call graph in graphviz .dot format.
 ppCallGraph :: IntMap (Instruction, FinalEffect) -> IntMap AddrUsage -> IntMap IntSet -> [String]
-ppCallGraph effs usage edges =
+ppCallGraph = ppCallGraph' mempty
+
+ppCallGraph' :: IntMap String -> IntMap (Instruction, FinalEffect) -> IntMap AddrUsage -> IntMap IntSet -> [String]
+ppCallGraph' labels effs usage edges =
   "digraph calls {" :
   "\tgraph [rankdir=\"LR\"];" :
   "\tgraph [ranksep=2.0];" :
@@ -156,20 +162,27 @@ ppCallGraph effs usage edges =
       "\tj_" ++ ppAddr a ++ " -> j_" ++ ppAddr b ++ ";"
     ppNode (a, (_, e)) =
       "\tj_" ++ ppAddr a ++
-      " [label=\"" ++ map toUpper (ppAddr a) ++
+      " [label=\"" ++ label a ++
       "\", shape=" ++ (if normalSubroutine e then "box" else "ellipse") ++
       (if IntSet.notMember a jsrs then ", style=filled" else "") ++
       "];"
+    label a =
+      case IntMap.lookup a labels of
+        Just l -> l
+        Nothing -> map toUpper (ppAddr a)
 
 -- | Print disassembly together with effect information for all
 -- subroutines, as well as usage information for all labels.
 ppCombined :: IntMap FinalEffect -> MemUsage -> IntMap Addr -> [Statement] -> IO ()
-ppCombined effs usage regions = go Nothing
+ppCombined = ppCombined' mempty
+
+ppCombined' :: IntMap String -> IntMap FinalEffect -> MemUsage -> IntMap Addr -> [Statement] -> IO ()
+ppCombined' labels effs usage regions = go Nothing
   where
     getEff a = fromMaybe mempty (IntMap.lookup a effs)
 
     label :: Word16 -> String
-    label w = ppLabel usage (addr16 w)
+    label w = ppLabel' labels usage (addr16 w)
 
     pad :: Int -> String -> String
     pad w s
@@ -200,13 +213,16 @@ ppCombined effs usage regions = go Nothing
            StmtLabel a ->
              do when (r /= r') $ putStrLn $ "\n; " ++ replicate 76 '-'
                 when (IntMap.lookup a regions == Just a) $
-                  mapM_ putStrLn $ map ("; " ++) (ppFinalEffect label (getEff a))
+                  do putStrLn $ "; " ++ ppLabel' labels usage a
+                     let eff = getEff a
+                     putStrLn $ "; " ++ if normalSubroutine eff then "Normal" else "NOT NORMAL"
+                     mapM_ putStrLn $ map ("; " ++) (ppFinalEffect label eff)
                 putStrLn $
-                  pad 48 (ppLabel usage a ++ ":") ++ "; " ++ ppAddrUsage (lookupUsage usage a)
+                  pad 48 (ppLabel' labels usage a ++ ":") ++ "; " ++ ppAddrUsage (lookupUsage usage a)
                 go r' stmts
            StmtDefine a ->
              do putStrLn $
-                  pad 48 (ppLabel usage a ++ " := $" ++ ppAddr a) ++
+                  pad 48 (ppLabel' labels usage a ++ " := $" ++ ppAddr a) ++
                   "; " ++ ppAddrUsage (lookupUsage usage a)
                 go r' stmts
            StmtCode a i ->
@@ -223,12 +239,19 @@ ppCombined effs usage regions = go Nothing
                 go r' stmts'
            StmtWord a w ->
              do putStrLn $
-                  pad 48 ("    .word " ++ ppLabel usage w) ++
+                  pad 48 ("    .word " ++ ppLabel' labels usage w) ++
                   "; " ++ ppAddr a
                 go r' stmts
            StmtSection a ->
              do putStrLn $ "\n.org $" ++ ppAddr a
                 go r' stmts
+
+ppLabel' :: IntMap String -> MemUsage -> Addr -> String
+ppLabel' labels usage addr =
+  case IntMap.lookup addr labels of
+    Just s -> s
+    Nothing ->
+      fromMaybe "$" (IntMap.lookup addr usage >>= labelPrefix) ++ ppAddr addr
 
 ppLabel :: MemUsage -> Addr -> String
 ppLabel usage addr =
