@@ -1,0 +1,102 @@
+cabal-version:       >=1.10
+
+name:                dis65
+version:             0.1.0.0
+synopsis:            Analyzing Disassembler for 65xx Machine Code
+-- description:
+-- bug-reports:
+license:             BSD3
+--license-file:        LICENSE
+author:              Brian Huffman
+maintainer:          huffman@galois.com
+-- copyright:
+-- category:
+build-type:          Simple
+extra-source-files:  CHANGELOG.md, README.md
+
+library
+    default-language:
+        Haskell2010
+    hs-source-dirs:
+        src
+    build-depends:
+        base >= 4.13 && < 5,
+        array,
+        bytestring,
+        containers
+    exposed-modules:
+        BinaryFile
+        Dis65
+        Dis65.Addr
+        Dis65.Backward
+        Dis65.Effect
+        Dis65.Effect.Class
+        Dis65.Effect.Mem
+        Dis65.Effect.Reg
+        Dis65.Effect.Stack
+        Dis65.Entry
+        Dis65.Forward
+        Dis65.Instruction
+        Dis65.Statement
+    ghc-options:
+        -Wall -Werror
+    ghc-options:
+        -fllvm
+        -fprof-auto
+
+executable drmario
+    default-language:
+        Haskell2010
+    hs-source-dirs:
+        examples
+    main-is:
+        DrMario.hs
+    build-depends:
+        base >=4.13 && < 5,
+        containers,
+        dis65
+    ghc-options:
+        -fllvm
+
+executable excitebike
+    default-language:
+        Haskell2010
+    hs-source-dirs:
+        examples
+    main-is:
+        ExciteBike.hs
+    build-depends:
+        base >=4.13 && < 5,
+        containers,
+        dis65
+    ghc-options:
+        -fllvm
+
+executable zelda
+    default-language:
+        Haskell2010
+    hs-source-dirs:
+        examples
+    main-is:
+        Zelda.hs
+    build-depends:
+        base >=4.13 && < 5,
+        containers,
+        dis65
+    ghc-options:
+        -fllvm
+
+executable megaman2
+    default-language:
+        Haskell2010
+    hs-source-dirs:
+        examples
+    main-is:
+        MegaMan2.hs
+    build-depends:
+        base >=4.13 && < 5,
+        containers,
+        dis65
+    ghc-options:
+        -fllvm
+        -fprof-auto
