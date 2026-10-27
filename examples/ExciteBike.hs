@@ -88,7 +88,10 @@ excitebike_2 =
        vectors = vs1 ++ vs2 ++ [0xcb3b,0xcb77,0xcba4,0xcc6b]
        overrides =
          IntMap.fromList
-         [ alwaysBranch instrs 0xc651 -- investigating non-normal C64E routine
+         [ alwaysBranch instrs 0xc568
+         , alwaysBranch instrs 0xc651 -- investigating non-normal C64E routine
+         , alwaysBranch instrs 0xc724
+         , alwaysBranch instrs 0xcc13
          , alwaysBranch instrs 0xf9a1 -- investigating non-normal F8D4 routine
          , (0xcb38, Override vectors mconcat)
          , (0xd930, Override [0xd933,0xd953,0xd983,0xd9d3,0xd9f6] mconcat)
@@ -182,7 +185,8 @@ ppJSRs effs =
 knownLabels :: IntMap String
 knownLabels =
   IntMap.fromList $
-  [ (0xc184, "C184_RESET")
+  [ (0x4000, "L4000_APU_PULSE1_SETTINGS")
+  , (0xc184, "C184_RESET")
   , (0xc1fd, "C1FD_INIT_580_5A3_6E0")
   , (0xc229, "C229_INIT_5A0_5C3")
   , (0xc23b, "C23B_NMI")
@@ -191,9 +195,22 @@ knownLabels =
   , (0xc339, "C339_ENABLE_NMI")
   , (0xc346, "C346_V0")
   , (0xc3b1, "C3B1_CLEAR_40_44")
-  , (0xc971, "C971_INC_0300")
+  , (0xc56e, "C56E_STA_45")
+  , (0xc971, "C971_INC_0300")           -- $0300 += A (return old value in X)
   , (0xcb13, "CB13_SET_A_FROM_02_46")
+  , (0xcc2f, "CC2F_STA_45")
+  , (0xcc6a, "CC6A_RTS")
+  , (0xce82, "CE82_RTS")
+  , (0xcf0b, "CF0B_RTS")
+  , (0xcf87, "CF87_RTS")
   , (0xcf8b, "CF8B_TEST_3B_3C_3D")
+  , (0xcf96, "CF96_SET_00_01")
+    -- input X, Y
+    -- $80[X] + $C0D6[Y] -> $00
+    -- $80[X] + $C0D6[Y] - $C0D7[Y] -> $01
+    -- ...
+  , (0xcfe9, "CFE9_RTS")
+  , (0xcfff, "CFFF_RTS")
   , (0xd1a9, "D1A9_ZERO_PPUSCROLL")
   , (0xd23b, "D23B_CLEAR_SCREENS")
   , (0xd24f, "D24F_SCREEN_OFF")
@@ -205,19 +222,29 @@ knownLabels =
   , (0xda15, "DA15_COMPUTE_6C")
   , (0xdc97, "DC97_03F1_BC_B8")
   , (0xdc9a, "DC9A_SBC_BC_B8")
+  , (0xdd37, "DD37_RTS")
+  , (0xdd8c, "DD8C_RTS")
   , (0xdfa2, "DFA2_DIVMOD_10")
   , (0xdfa4, "DFA4_DIVMOD")
+  , (0xe269, "E269_RTS")
   , (0xe7ff, "E7FF_READ_ARRAY_0400")
   , (0xe803, "E803_READ_ARRAY_0400")
-  , (0xe80d, "E80D_SET_PTR_03_04")
+  , (0xe80d, "E80D_SET_PTR_03_04") -- copy vector from $E54E,Y to ($03,$04)
   , (0xe893, "E893_B4_D4_C8_D0")
+  , (0xeac4, "EAC4_RTS")
+  , (0xec3a, "EC3A_RTS")
   , (0xec3b, "EC3B_COPY_PAGE_5E0_6E0")
+  , (0xec98, "EC98_RTS")
   , (0xecbf, "ECBF_INC_MOD_64")
+  , (0xecc8, "ECC8_RTS")
   , (0xecc9, "ECC9_TEST")
+  , (0xf676, "F676_FILL_0303") -- fill $0303-$030D with #$fc
   , (0xf6fb, "F6FB_INC_B1_B0")
   , (0xf821, "F821_05E0_INX_B7_0_C5")
   , (0xf826, "F826_INX_B7_0_C5")
-  , (0xf839, "F839_SET_PTR_07_08")
+  , (0xf82e, "F82E_SET_PTR_05_06") -- $F063,X -> $05; $F087,X -> $06;
+  , (0xf839, "F839_SET_PTR_07_08") -- $F4F5,X -> $07; $F4FA,X -> $08;
+  , (0xf844, "F844_AUDIO_MAIN")
   , (0xf86b, "F86B_FANCY_NOTE_PULSE1")
   , (0xf871, "F871_PLAY_NOTE_PULSE1")
   , (0xf873, "F873_PLAY_NOTE")
