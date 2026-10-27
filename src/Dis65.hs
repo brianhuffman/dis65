@@ -182,7 +182,7 @@ ppCombined' labels effs usage regions = go Nothing
     getEff a = fromMaybe mempty (IntMap.lookup a effs)
 
     label :: Word16 -> String
-    label w = ppLabel' labels usage (addr16 w)
+    label w = ppLabel labels usage (addr16 w)
 
     pad :: Int -> String -> String
     pad w s
@@ -213,22 +213,22 @@ ppCombined' labels effs usage regions = go Nothing
            StmtLabel a ->
              do when (r /= r') $ putStrLn $ "\n; " ++ replicate 76 '-'
                 when (IntMap.lookup a regions == Just a) $
-                  do putStrLn $ "; " ++ ppLabel' labels usage a
+                  do putStrLn $ "; " ++ ppLabel labels usage a
                      let eff = getEff a
                      putStrLn $ "; " ++ if normalSubroutine eff then "Normal" else "NOT NORMAL"
                      mapM_ putStrLn $ map ("; " ++) (ppFinalEffect label eff)
                 putStrLn $
-                  pad 48 (ppLabel' labels usage a ++ ":") ++ "; " ++ ppAddrUsage (lookupUsage usage a)
+                  pad 48 (ppLabel labels usage a ++ ":") ++ "; " ++ ppAddrUsage (lookupUsage usage a)
                 go r' stmts
            StmtDefine a ->
              do putStrLn $
-                  pad 48 (ppLabel' labels usage a ++ " := $" ++ ppAddr a) ++
+                  pad 48 (ppLabel labels usage a ++ " := $" ++ ppAddr a) ++
                   "; " ++ ppAddrUsage (lookupUsage usage a)
                 go r' stmts
            StmtCode a i ->
              do let e = getEff a
                 putStrLn $
-                  pad 48 ("    " ++ ppInstr usage i) ++
+                  pad 48 ("    " ++ ppInstr labels usage i) ++
                   unwords [";", ppAddr a, ppRegEffect' (registers' e), ppFinalStackEffect' (stack' e)]
                 go r' stmts
            StmtByte a b0 ->
@@ -239,26 +239,22 @@ ppCombined' labels effs usage regions = go Nothing
                 go r' stmts'
            StmtWord a w ->
              do putStrLn $
-                  pad 48 ("    .word " ++ ppLabel' labels usage w) ++
+                  pad 48 ("    .word " ++ ppLabel labels usage w) ++
                   "; " ++ ppAddr a
                 go r' stmts
            StmtSection a ->
              do putStrLn $ "\n.org $" ++ ppAddr a
                 go r' stmts
 
-ppLabel' :: IntMap String -> MemUsage -> Addr -> String
-ppLabel' labels usage addr =
+ppLabel :: IntMap String -> MemUsage -> Addr -> String
+ppLabel labels usage addr =
   case IntMap.lookup addr labels of
     Just s -> s
     Nothing ->
       fromMaybe "$" (IntMap.lookup addr usage >>= labelPrefix) ++ ppAddr addr
 
-ppLabel :: MemUsage -> Addr -> String
-ppLabel usage addr =
-  fromMaybe "$" (IntMap.lookup addr usage >>= labelPrefix) ++ ppAddr addr
-
-ppInstr :: MemUsage -> Instruction -> String
-ppInstr usage = ppInstruction (ppLabel usage . addr16)
+ppInstr :: IntMap String -> MemUsage -> Instruction -> String
+ppInstr labels usage = ppInstruction (ppLabel labels usage . addr16)
 
 ppMemEffectsByPC :: (Addr -> String) -> IntMap Mem.MemEffect -> IO ()
 ppMemEffectsByPC label es =
