@@ -147,9 +147,9 @@ excitebike_2 =
      let (entries, regions, edges) = entryPoints successors roots
      ppMemEffectsByPC (ppLabel usage) (fmap (memory' . snd) (IntMap.restrictKeys effs entries))
      putStrLn (replicate 80 '-')
-     ppCombined (fmap snd effs) usage regions statements
+     ppCombined' knownLabels (fmap snd effs) usage regions statements
      putStrLn (replicate 80 '-')
-     mapM_ putStrLn $ ppCallGraph effs usage edges
+     mapM_ putStrLn $ ppCallGraph' knownLabels effs usage edges
 
 ppLabel :: MemUsage -> Addr -> String
 ppLabel usage addr =
@@ -176,6 +176,56 @@ ppJSRs effs =
             unlines (map (replicate 11 ' ' ++) (ppFinalEffect label e))
     label :: Word16 -> String
     label w = "$" ++ ppWord16 w
+
+knownLabels :: IntMap String
+knownLabels =
+  IntMap.fromList $
+  [ (0xc184, "C184_RESET")
+  , (0xc1fd, "C1FD_INIT_580_5A3_6E0")
+  , (0xc229, "C229_INIT_5A0_5C3")
+  , (0xc23b, "C23B_NMI")
+  , (0xc32f, "C32F_DISABLE_NMI")
+  , (0xc333, "C333_SET_PPUCTRL")
+  , (0xc339, "C339_ENABLE_NMI")
+  , (0xc346, "C346_V0")
+  , (0xc3b1, "C3B1_CLEAR_40_44")
+  , (0xc971, "C971_INC_0300")
+  , (0xcb13, "CB13_SET_A_FROM_02_46")
+  , (0xcf8b, "CF8B_TEST_3B_3C_3D")
+  , (0xd1a9, "D1A9_ZERO_PPUSCROLL")
+  , (0xd23b, "D23B_CLEAR_SCREENS")
+  , (0xd24f, "D24F_SCREEN_OFF")
+  , (0xd255, "D255_RESET_PAGE_2")
+  , (0xd260, "D260_CLEAR_SCREEN")
+  , (0xd310, "D310_DEC_ARRAY_21")
+  , (0xd326, "D326_LFSR")
+  , (0xd3c1, "D3C1_WRITE_SCREEN_DATA")
+  , (0xda15, "DA15_COMPUTE_6C")
+  , (0xdc97, "DC97_03F1_BC_B8")
+  , (0xdc9a, "DC9A_SBC_BC_B8")
+  , (0xdfa2, "DFA2_DIVMOD_10")
+  , (0xdfa4, "DFA4_DIVMOD")
+  , (0xe7ff, "E7FF_READ_ARRAY_0400")
+  , (0xe803, "E803_READ_ARRAY_0400")
+  , (0xe80d, "E80D_SET_PTR_03_04")
+  , (0xe893, "E893_B4_D4_C8_D0")
+  , (0xec3b, "EC3B_COPY_PAGE_5E0_6E0")
+  , (0xecbf, "ECBF_INC_MOD_64")
+  , (0xecc9, "ECC9_TEST")
+  , (0xf6fb, "F6FB_INC_B1_B0")
+  , (0xf821, "F821_05E0_INX_B7_0_C5")
+  , (0xf826, "F826_INX_B7_0_C5")
+  , (0xf839, "F839_SET_PTR_07_08")
+  , (0xf86b, "F86B_FANCY_NOTE_PULSE1")
+  , (0xf871, "F871_PLAY_NOTE_PULSE1")
+  , (0xf873, "F873_PLAY_NOTE")
+  , (0xf885, "F885_PLAY_NOTE_PULSE2")
+  , (0xf889, "F889_PLAY_NOTE_TRIANGLE")
+  , (0xf8d4, "F8D4_AUDIO_1")
+  , (0xfa74, "FA74_AUDIO_2")
+  , (0xfc3d, "FC3D_AUDIO_3")
+  , (0xfc8d, "FC8D_AUDIO_4")
+  ]
 
 {-
 
