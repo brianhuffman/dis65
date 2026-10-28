@@ -1,16 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Main where
+module Main (main) where
 
-import           Control.Monad
-import           Data.Char (toUpper)
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
-import           Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import           Data.List
 import           Data.Maybe
 import           Data.Word
 
@@ -18,10 +12,6 @@ import           Data.Word
 import BinaryFile (readBytes)
 import Dis65.Addr
 import Dis65.Effect
-import Dis65.Effect.Class
-import Dis65.Effect.Mem (canRead, canWrite)
-import Dis65.Effect.Reg
-import Dis65.Effect.Stack (ppFinalStackEffect')
 import Dis65.Backward
 import Dis65.Entry
 import Dis65.Forward
@@ -30,19 +20,15 @@ import Dis65.Statement
 
 import Dis65
 
-import qualified Dis65.Effect.Mem as Mem
-
 
 -- readBytes :: FilePath -> IO [Word8]
-
-loadAt :: FilePath -> Int -> IO (IntMap Word8)
-loadAt path offset = memAt offset <$> readBytes path
 
 memAt :: Int -> [Word8] -> IntMap Word8
 memAt offset bs = IntMap.fromAscList (zip [offset..] bs)
 
 main :: IO ()
 main =
+  if False then excitebike_1 else
   excitebike_2
 
 -- | No special knowledge about program.
@@ -161,28 +147,6 @@ excitebike_2 =
 ppLabel :: MemUsage -> Addr -> String
 ppLabel usage addr =
   fromMaybe "$" (IntMap.lookup addr usage >>= labelPrefix) ++ ppAddr addr
-
-
-ppJSRs :: IntMap (Instruction, FinalEffect) -> IO ()
-ppJSRs effs =
-  do let instrs = fmap fst effs
-     let jsrs = allJSRs instrs
-     mapM_ pp1 (IntSet.toList jsrs)
-  where
-    pp1 :: Int -> IO ()
-    pp1 addr =
-      case IntMap.lookup addr effs of
-        Nothing ->
-          putStrLn $ "JSR $" ++ ppAddr addr ++ ": <unmapped>"
-        Just (_, e)
-          | normalSubroutine e ->
-            putStrLn $ "JSR $" ++ ppAddr addr ++ ": Normal\n" ++
-            unlines (map (replicate 11 ' ' ++) (ppFinalEffect label e))
-          | otherwise ->
-            putStrLn $ "JSR $" ++ ppAddr addr ++ ": NOT NORMAL\n" ++
-            unlines (map (replicate 11 ' ' ++) (ppFinalEffect label e))
-    label :: Word16 -> String
-    label w = "$" ++ ppWord16 w
 
 knownLabels :: IntMap String
 knownLabels =
