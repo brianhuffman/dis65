@@ -163,5 +163,5 @@ ppMemEffect label (MemEffect r w _) =
   heading "MODIFIES" (inter r w)
   where
     heading str set
-      | null (elems set) = []
+      | null (elems set) = [unwords [str, "nothing"]]
       | otherwise = [unwords (str : map (ppAddrArg label) (elems set))]

@@ -327,11 +327,11 @@ computeFinalEffects instructions overrides =
      pure (IntMap.intersectionWith (,) instructions final)
 
 -- | Parameterized by a printer for labels.
-ppFinalEffects :: (Word16 -> String) -> IntMap (Instruction, FinalEffect) -> IO ()
+ppFinalEffects :: (Addr -> String) -> IntMap (Instruction, FinalEffect) -> IO ()
 ppFinalEffects label = mapM_ pp1 . IntMap.assocs
   where
     pp1 (addr, (instr, e)) =
       putStrLn $
       ppWord16 (fromIntegral addr) ++ ": " ++
-      take 16 (ppInstruction label instr ++ repeat ' ') ++ " " ++
+      take 16 (ppInstruction (label . sameBank addr) instr ++ repeat ' ') ++ " " ++
       drop 23 (unlines (map (replicate 23 ' ' ++) (ppFinalEffect label e)))

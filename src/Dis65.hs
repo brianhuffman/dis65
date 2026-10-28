@@ -181,8 +181,8 @@ ppCombined' labels effs usage regions = go Nothing
   where
     getEff a = fromMaybe mempty (IntMap.lookup a effs)
 
-    label :: Word16 -> String
-    label w = ppLabel labels usage (addr16 w)
+    label :: Addr -> String
+    label w = ppLabel labels usage w
 
     pad :: Int -> String -> String
     pad w s

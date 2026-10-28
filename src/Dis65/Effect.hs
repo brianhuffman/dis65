@@ -170,34 +170,35 @@ normalSubroutine e =
 --------------------------------------------------------------------------------
 -- * Pretty printing
 
-ppSubroutines :: IntSet -> String
-ppSubroutines s
+-- | Parameterized by a printer for labels.
+ppSubroutines :: (Addr -> String) -> IntSet -> String
+ppSubroutines label s
   | IntSet.null s = ""
   | otherwise =
-    unwords ("JSR" : [ "$" ++ ppWord16 (fromIntegral a) | a <- IntSet.elems s ])
+    unwords ("JSR" : map label (IntSet.elems s))
 
 -- | Parameterized by a printer for labels.
-ppBasicEffect :: (Word16 -> String) -> BasicEffect -> String
+ppBasicEffect :: (Addr -> String) -> BasicEffect -> String
 ppBasicEffect label e =
   unwords $
   filter (not . null) $
   [ Reg.ppRegEffect (registers e)
   , Stack.ppStackEffect (stack e)
   ] ++
-  Mem.ppMemEffect label (memory e) ++
-  [ ppSubroutines (subroutines e)
+  Mem.ppMemEffect (label . fromIntegral) (memory e) ++
+  [ ppSubroutines label (subroutines e)
   , if branch e then "Branches" else ""
   ]
 
 -- | Parameterized by a printer for labels.
-ppFinalEffect :: (Word16 -> String) -> FinalEffect -> [String]
+ppFinalEffect :: (Addr -> String) -> FinalEffect -> [String]
 ppFinalEffect label e =
   filter (not . null) $
   [ Reg.ppRegEffect (registers' e)
   , Stack.ppFinalStackEffect (stack' e)
   ] ++
-  Mem.ppMemEffect label (memory' e) ++
-  [ ppSubroutines (subroutines' e)
+  Mem.ppMemEffect (label . addr16) (memory' e) ++
+  [ ppSubroutines label (subroutines' e)
   , if branch' e then "Branches" else ""
   , if loop' e then "Loops" else ""
   ]
