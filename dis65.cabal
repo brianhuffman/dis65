@@ -33,6 +33,7 @@ library
         Dis65.Effect.Class
         Dis65.Effect.Mem
         Dis65.Effect.Reg
+        Dis65.Effect.Flag
         Dis65.Effect.Stack
         Dis65.Entry
         Dis65.Forward

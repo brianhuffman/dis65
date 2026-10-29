@@ -14,6 +14,7 @@ import           Dis65.Effect.Class
 import qualified Dis65.Effect.Stack as Stack
 import qualified Dis65.Effect.Mem as Mem
 import qualified Dis65.Effect.Reg as Reg
+import qualified Dis65.Effect.Flag as Flag
 
 import Dis65.Addr
 import Dis65.Effect
@@ -25,70 +26,108 @@ import Dis65.Instruction
 doOpStack :: OpStack -> BasicEffect
 doOpStack =
   \case
-    PHP -> noEffect { stack = Stack.push, registers = Reg.readP }
-    PLP -> noEffect { stack = Stack.pull, registers = Reg.writeP }
+    PHP -> noEffect { stack = Stack.push, flags = Flag.readP }
+    PLP -> noEffect { stack = Stack.pull, flags = Flag.writeP }
     PHA -> noEffect { stack = Stack.push, registers = Reg.readA }
-    PLA -> noEffect { stack = Stack.pull, registers = Reg.writeA >>> Reg.writeNZ }
+    PLA -> noEffect { stack = Stack.pull, registers = Reg.writeA, flags = Flag.writeNZ }
 
 doOpReg :: OpReg -> Reg.RegEffect
 doOpReg =
   \case
-    CLC -> Reg.writeC
-    SEC -> Reg.writeC
-    CLI -> Reg.writeI
-    SEI -> Reg.writeI
-    CLV -> Reg.writeV
-    CLD -> Reg.writeD
-    SED -> Reg.writeD
-    DEX -> Reg.readX >>> Reg.writeX >>> Reg.writeNZ
-    TXA -> Reg.readX >>> Reg.writeA >>> Reg.writeNZ
-    TAX -> Reg.readA >>> Reg.writeX >>> Reg.writeNZ
-    INX -> Reg.readX >>> Reg.writeX >>> Reg.writeNZ
-    DEY -> Reg.readY >>> Reg.writeY >>> Reg.writeNZ
-    TYA -> Reg.readY >>> Reg.writeA >>> Reg.writeNZ
-    TAY -> Reg.readA >>> Reg.writeY >>> Reg.writeNZ
-    INY -> Reg.readY >>> Reg.writeY >>> Reg.writeNZ
+    CLC -> noEffect
+    SEC -> noEffect
+    CLI -> noEffect
+    SEI -> noEffect
+    CLV -> noEffect
+    CLD -> noEffect
+    SED -> noEffect
+    DEX -> Reg.readX >>> Reg.writeX
+    TXA -> Reg.readX >>> Reg.writeA
+    TAX -> Reg.readA >>> Reg.writeX
+    INX -> Reg.readX >>> Reg.writeX
+    DEY -> Reg.readY >>> Reg.writeY
+    TYA -> Reg.readY >>> Reg.writeA
+    TAY -> Reg.readA >>> Reg.writeY
+    INY -> Reg.readY >>> Reg.writeY
     TXS -> Reg.readX >>> Reg.writeS
-    TSX -> Reg.readS >>> Reg.writeX >>> Reg.writeNZ
+    TSX -> Reg.readS >>> Reg.writeX
     NOP -> noEffect
 
-doOpBranch :: OpBranch -> Reg.RegEffect
+opRegFlags :: OpReg -> Flag.FlagEffect
+opRegFlags =
+  \case
+    CLC -> Flag.clrC
+    SEC -> Flag.setC
+    CLI -> Flag.clrI
+    SEI -> Flag.setI
+    CLV -> Flag.clrV
+    CLD -> Flag.clrD
+    SED -> Flag.setD
+    DEX -> Flag.writeNZ
+    TXA -> Flag.writeNZ
+    TAX -> Flag.writeNZ
+    INX -> Flag.writeNZ
+    DEY -> Flag.writeNZ
+    TYA -> Flag.writeNZ
+    TAY -> Flag.writeNZ
+    INY -> Flag.writeNZ
+    TXS -> noEffect
+    TSX -> Flag.writeNZ
+    NOP -> noEffect
+
+doOpBranch :: OpBranch -> Flag.FlagEffect
 doOpBranch =
   \case
-    BPL -> Reg.readN
-    BMI -> Reg.readN
-    BVC -> Reg.readV
-    BVS -> Reg.readV
-    BCC -> Reg.readC
-    BCS -> Reg.readC
-    BNE -> Reg.readZ
-    BEQ -> Reg.readZ
+    BPL -> Flag.readN
+    BMI -> Flag.readN
+    BVC -> Flag.readV
+    BVS -> Flag.readV
+    BCC -> Flag.readC
+    BCS -> Flag.readC
+    BNE -> Flag.readZ
+    BEQ -> Flag.readZ
 
 doOpR :: OpR -> Reg.RegEffect
 doOpR =
   \case
-    ORA -> Reg.readA >>> Reg.writeA >>> Reg.writeNZ
-    AND -> Reg.readA >>> Reg.writeA >>> Reg.writeNZ
-    EOR -> Reg.readA >>> Reg.writeA >>> Reg.writeNZ
-    ADC -> Reg.readA >>> Reg.readC >>> Reg.readD >>> Reg.writeA >>> Reg.writeNZC >>> Reg.writeV
-    SBC -> Reg.readA >>> Reg.readC >>> Reg.readD >>> Reg.writeA >>> Reg.writeNZC >>> Reg.writeV
-    BIT -> Reg.readA >>> Reg.writeNZ >>> Reg.writeV
-    CMP -> Reg.readA >>> Reg.writeNZC
-    CPX -> Reg.readX >>> Reg.writeNZC
-    CPY -> Reg.readY >>> Reg.writeNZC
-    LDA -> Reg.writeA >>> Reg.writeNZ
-    LDX -> Reg.writeX >>> Reg.writeNZ
-    LDY -> Reg.writeY >>> Reg.writeNZ
+    ORA -> Reg.readA >>> Reg.writeA
+    AND -> Reg.readA >>> Reg.writeA
+    EOR -> Reg.readA >>> Reg.writeA
+    ADC -> Reg.readA >>> Reg.writeA
+    SBC -> Reg.readA >>> Reg.writeA
+    BIT -> Reg.readA
+    CMP -> Reg.readA
+    CPX -> Reg.readX
+    CPY -> Reg.readY
+    LDA -> Reg.writeA
+    LDX -> Reg.writeX
+    LDY -> Reg.writeY
 
-doOpRW :: OpRW -> Reg.RegEffect
+opRFlags :: OpR -> Flag.FlagEffect
+opRFlags =
+  \case
+    ORA -> Flag.writeNZ
+    AND -> Flag.writeNZ
+    EOR -> Flag.writeNZ
+    ADC -> Flag.readC >>> Flag.readD >>> Flag.writeNZC >>> Flag.writeV
+    SBC -> Flag.readC >>> Flag.readD >>> Flag.writeNZC >>> Flag.writeV
+    BIT -> Flag.writeNZ >>> Flag.writeV
+    CMP -> Flag.writeNZC
+    CPX -> Flag.writeNZC
+    CPY -> Flag.writeNZC
+    LDA -> Flag.writeNZ
+    LDX -> Flag.writeNZ
+    LDY -> Flag.writeNZ
+
+doOpRW :: OpRW -> Flag.FlagEffect
 doOpRW =
   \case
-    ASL -> Reg.writeNZC
-    ROL -> Reg.readC >>> Reg.writeNZC
-    LSR -> Reg.writeNZC
-    ROR -> Reg.readC >>> Reg.writeNZC
-    DEC -> Reg.writeNZ
-    INC -> Reg.writeNZ
+    ASL -> Flag.writeNZC
+    ROL -> Flag.readC >>> Flag.writeNZC
+    LSR -> Flag.writeNZC
+    ROR -> Flag.readC >>> Flag.writeNZC
+    DEC -> Flag.writeNZ
+    INC -> Flag.writeNZ
 
 doOpW :: OpW -> Reg.RegEffect
 doOpW =
@@ -174,25 +213,25 @@ computeEffectAt instructions state pc =
     Just instr ->
      case instr of
        Reg op ->
-         let effect = noEffect { registers = doOpReg op }
+         let effect = noEffect { registers = doOpReg op, flags = opRegFlags op }
          in thenFinalEffect effect $ lookupEffect state (pc + 1)
        Stack op ->
          let effect = doOpStack op
          in thenFinalEffect effect $ lookupEffect state (pc + 1)
        Read op arg ->
-         let effect = doAddrArg Mem.readAddr arg >>> noEffect { registers = doOpR op }
+         let effect = doAddrArg Mem.readAddr arg >>> noEffect { registers = doOpR op, flags = opRFlags op }
          in thenFinalEffect effect $ lookupEffect state (pc + 1 + sizeAddrArg arg)
        Write op arg ->
          let effect = doAddrArg Mem.writeAddr arg >>> noEffect { registers = doOpW op }
          in thenFinalEffect effect $ lookupEffect state (pc + 1 + sizeAddrArg arg)
        Modify op arg ->
-         let effect = doAddrArg Mem.modifyAddr arg >>> noEffect { registers = doOpRW op }
+         let effect = doAddrArg Mem.modifyAddr arg >>> noEffect { flags = doOpRW op }
          in thenFinalEffect effect $ lookupEffect state (pc + 1 + sizeAddrArg arg)
        Accumulator op ->
-         let effect = noEffect { registers = Reg.readA >>> doOpRW op >>> Reg.writeA }
+         let effect = noEffect { registers = Reg.readA >>> Reg.writeA, flags = doOpRW op }
          in thenFinalEffect effect $ lookupEffect state (pc + 1)
        Branch op (sameBank pc -> target) ->
-         let effect = noEffect { registers = doOpBranch op, branch = True }
+         let effect = noEffect { flags = doOpBranch op, branch = True }
          in thenFinalEffect effect $ (lookupEffect state (pc + 2) <> lookupEffect state target)
        JSR (sameBank pc -> target) ->
          let

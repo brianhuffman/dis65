@@ -34,6 +34,7 @@ import Dis65.Addr
 import Dis65.Effect
 import Dis65.Effect.Class
 import Dis65.Effect.Reg
+import Dis65.Effect.Flag
 import Dis65.Effect.Stack (ppFinalStackEffect')
 import Dis65.Backward
 import Dis65.Forward
@@ -95,7 +96,7 @@ alwaysBranch instrs pc =
     _ -> error "alwaysBranch: not a valid branch instruction"
   where
     branchEffect op es =
-      let effect = noEffect { registers = doOpBranch op, branch = True }
+      let effect = noEffect { flags = doOpBranch op, branch = True }
       in thenFinalEffect effect (mconcat es)
 
 -- | Override for a subroutine that implements a jump table. The table
@@ -229,7 +230,7 @@ ppCombined' labels effs usage regions = go Nothing
              do let e = getEff a
                 putStrLn $
                   pad 48 ("    " ++ ppInstr labels usage i) ++
-                  unwords [";", ppAddr a, ppRegEffect' (registers' e), ppFinalStackEffect' (stack' e)]
+                  unwords [";", ppAddr a, ppRegEffect' (registers' e) ++ ppFlagEffect' (flags' e), ppFinalStackEffect' (stack' e)]
                 go r' stmts
            StmtByte a b0 ->
              do let (bs, stmts') = takeBytes 7 stmts

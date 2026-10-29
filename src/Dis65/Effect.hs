@@ -11,6 +11,7 @@ import           Dis65.Effect.Class
 import qualified Dis65.Effect.Stack as Stack
 import qualified Dis65.Effect.Mem as Mem
 import qualified Dis65.Effect.Reg as Reg
+import qualified Dis65.Effect.Flag as Flag
 
 import Dis65.Addr
 
@@ -22,6 +23,7 @@ data BasicEffect =
   { stack :: !Stack.StackEffect
   , memory :: !Mem.MemEffect
   , registers :: !Reg.RegEffect
+  , flags :: !Flag.FlagEffect
   , subroutines :: !IntSet
   , branch :: !Bool
   }
@@ -33,6 +35,7 @@ instance Choice BasicEffect where
     { stack = stack e1 +++ stack e2
     , memory = memory e1 +++ memory e2
     , registers = registers e1 +++ registers e2
+    , flags = flags e1 +++ flags e2
     , subroutines = subroutines e1 <> subroutines e2
     , branch = branch e1 || branch e2
     }
@@ -43,6 +46,7 @@ instance Effect BasicEffect where
     { stack = stack e1 >>> stack e2
     , memory = memory e1 >>> memory e2
     , registers = registers e1 >>> registers e2
+    , flags = flags e1 >>> flags e2
     , subroutines = subroutines e1 <> subroutines e2
     , branch = branch e1 || branch e2
     }
@@ -53,6 +57,7 @@ instance NoEffect BasicEffect where
     { stack = noEffect
     , memory = noEffect
     , registers = noEffect
+    , flags = noEffect
     , subroutines = mempty
     , branch = False
     }
@@ -68,6 +73,7 @@ data FinalEffect =
   { stack' :: !Stack.FinalStackEffect
   , memory' :: !Mem.MemEffect
   , registers' :: !Reg.RegEffect
+  , flags' :: !Flag.FlagEffect
   , subroutines' :: !IntSet
   , branch' :: !Bool
   , loop' :: !Bool -- ^ Whether it is possible to enter an infinite loop
@@ -80,6 +86,7 @@ instance Semigroup FinalEffect where
     { stack' = stack' e1 <> stack' e2
     , memory' = memory' e1 +++ memory' e2
     , registers' = registers' e1 +++ registers' e2
+    , flags' = flags' e1 +++ flags' e2
     , subroutines' = subroutines' e1 <> subroutines' e2
     , branch' = branch' e1 || branch' e2
     , loop' = loop' e1 || loop' e2
@@ -91,6 +98,7 @@ instance Monoid FinalEffect where
     { stack' = bottom
     , memory' = bottom
     , registers' = bottom
+    , flags' = bottom
     , subroutines' = mempty
     , branch' = False
     , loop' = False
@@ -102,6 +110,7 @@ instance Bottom FinalEffect where
     { stack' = bottom
     , memory' = bottom
     , registers' = bottom
+    , flags' = bottom
     , subroutines' = mempty
     , branch' = False
     , loop' = True
@@ -113,6 +122,7 @@ thenFinalEffect e1 e2 =
   { stack' = Stack.thenFinalStackEffect (stack e1) (stack' e2)
   , memory' = memory e1 >>> memory' e2
   , registers' = registers e1 >>> registers' e2
+  , flags' = flags e1 >>> flags' e2
   , subroutines' = subroutines e1 <> subroutines' e2
   , branch' = branch e1 || branch' e2
   , loop' = loop' e2
@@ -124,6 +134,7 @@ jsrFinalEffect subroutine after =
   { stack' = Stack.jsrFinalStackEffect (stack' subroutine) (stack' after)
   , memory' = memory' subroutine >>> memory' after
   , registers' = registers' subroutine >>> registers' after
+  , flags' = flags' subroutine >>> flags' after
   , subroutines' = {- subroutines' subroutine <> -} subroutines' after
   , branch' = branch' subroutine || branch' after
   , loop' = loop' subroutine || loop' after
@@ -135,6 +146,7 @@ mkFinalEffect s =
     { stack' = s
     , memory' = noEffect
     , registers' = noEffect
+    , flags' = noEffect
     , subroutines' = mempty
     , branch' = False
     , loop' = False
@@ -183,6 +195,7 @@ ppBasicEffect label e =
   unwords $
   filter (not . null) $
   [ Reg.ppRegEffect (registers e)
+  , Flag.ppFlagEffect (flags e)
   , Stack.ppStackEffect (stack e)
   ] ++
   Mem.ppMemEffect (label . fromIntegral) (memory e) ++
@@ -195,6 +208,7 @@ ppFinalEffect :: (Addr -> String) -> FinalEffect -> [String]
 ppFinalEffect label e =
   filter (not . null) $
   [ Reg.ppRegEffect (registers' e)
+  , Flag.ppFlagEffect (flags' e)
   , Stack.ppFinalStackEffect (stack' e)
   ] ++
   Mem.ppMemEffect (label . addr16) (memory' e) ++
